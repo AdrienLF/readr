@@ -68,16 +68,12 @@ Be concise and direct. No filler.
 Articles:
 {articles_text}"""
 
-    try:
-        client = AsyncClient(host=app_settings.ollama_base_url)
-        response = await client.chat(
-            model=model,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        return response.message.content
-    except Exception as e:
-        logger.error(f"Ollama error: {e}")
-        return None
+    client = AsyncClient(host=app_settings.ollama_base_url)
+    response = await client.chat(
+        model=model,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    return response.message.content
 
 
 async def summarize_article(article) -> str | None:
@@ -95,16 +91,12 @@ Title: {article.title}
 Content:
 {text}"""
 
-    try:
-        client = AsyncClient(host=app_settings.ollama_base_url)
-        response = await client.chat(
-            model=model,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        return response.message.content
-    except Exception as e:
-        logger.error(f"Ollama summarize error: {e}")
-        return None
+    client = AsyncClient(host=app_settings.ollama_base_url)
+    response = await client.chat(
+        model=model,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    return response.message.content
 
 
 async def generate_all_digests(target_date: str | None = None, topic_id: int | None = None):

@@ -1,7 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { format } from 'date-fns';
-  import { Zap, RefreshCw, ChevronDown } from 'lucide-svelte';
+  import { Zap, RefreshCw, ChevronDown, AlertCircle } from 'lucide-svelte';
   import { app } from '$lib/stores/app.svelte.js';
   import { digests as digestsApi } from '$lib/api.js';
 
@@ -10,6 +10,7 @@
   let digestList = $state([]);
   let loading = $state(false);
   let generating = $state(false);
+  let generateError = $state('');
   let selectedDate = $state(new Date().toISOString().split('T')[0]);
   let openId = $state(null);
 
@@ -24,11 +25,19 @@
 
   async function generate(topicId = undefined) {
     generating = true;
+    generateError = '';
     try {
-      await digestsApi.generate(topicId, selectedDate);
-      // Poll for result
-      await new Promise((r) => setTimeout(r, 3000));
-      await load();
+      const results = await digestsApi.generate(topicId, selectedDate);
+      // Merge newly generated into the list (avoid duplicates)
+      if (results?.length) {
+        const existingIds = new Set(digestList.map((d) => d.id));
+        digestList = [...digestList, ...results.filter((d) => !existingIds.has(d.id))];
+      } else {
+        // May have returned empty if no articles — reload to show current state
+        await load();
+      }
+    } catch (err) {
+      generateError = err.message || 'Generation failed';
     } finally {
       generating = false;
     }
@@ -78,6 +87,12 @@
         </button>
       </div>
     </div>
+    {#if generateError}
+      <div class="flex items-center gap-2 mt-2 px-3 py-2 bg-red-950/40 border border-red-800/50 rounded-lg max-w-3xl mx-auto text-xs text-red-400">
+        <AlertCircle size={13} class="shrink-0" />
+        {generateError}
+      </div>
+    {/if}
   </div>
 
   <div class="flex-1 px-4 py-6 max-w-3xl mx-auto w-full">
@@ -113,8 +128,7 @@
                 <span class="text-xs text-zinc-600">{digest.model_used}</span>
                 <ChevronDown
                   size={16}
-                  class="text-zinc-500 transition-transform duration-200
-                         {openId === digest.id ? 'rotate-180' : ''}"
+                  class="text-zinc-500 transition-transform duration-200 {openId === digest.id ? 'rotate-180' : ''}"
                 />
               </div>
             </button>

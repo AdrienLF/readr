@@ -1,3 +1,4 @@
+import httpx
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -6,6 +7,7 @@ from ..database import get_db
 from ..models import Setting
 from ..schemas import SettingsUpdate, SettingsResponse
 from ..services.scheduler import reschedule
+from ..config import settings as app_settings
 
 router = APIRouter()
 
@@ -48,3 +50,17 @@ async def update_settings(payload: SettingsUpdate, db: AsyncSession = Depends(ge
     )
 
     return await get_settings(db)
+
+
+@router.get("/ollama-models")
+async def list_ollama_models():
+    """Fetch the list of locally available Ollama models."""
+    try:
+        async with httpx.AsyncClient(timeout=5) as client:
+            resp = await client.get(f"{app_settings.ollama_base_url}/api/tags")
+            resp.raise_for_status()
+            data = resp.json()
+            models = [m["name"] for m in data.get("models", [])]
+            return {"models": models, "status": "ok"}
+    except Exception as e:
+        return {"models": [], "status": "unreachable", "error": str(e)}

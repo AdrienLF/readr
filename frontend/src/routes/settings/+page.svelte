@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte';
-  import { Settings, Trash2, RefreshCw, Plus, Edit2, Check, Upload, Download, X, Tag, Zap, ToggleLeft, ToggleRight } from 'lucide-svelte';
+  import { Settings, Trash2, RefreshCw, Plus, Edit2, Check, Upload, Download, X, Tag, Zap, ToggleLeft, ToggleRight, AlertCircle, CheckCircle2 } from 'lucide-svelte';
   import { app } from '$lib/stores/app.svelte.js';
   import { settings as settingsApi, feeds as feedsApi, topics as topicsApi, filters as filtersApi, tags as tagsApi, rules as rulesApi } from '$lib/api.js';
 
@@ -10,6 +10,11 @@
   let saving = $state(false);
   let saved = $state(false);
   let editingFeed = $state(null);
+
+  // Ollama model picker
+  let ollamaModels = $state([]);
+  let ollamaStatus = $state(''); // '' | 'ok' | 'unreachable'
+  let ollamaError = $state('');
 
   // OPML
   let importStatus = $state('');
@@ -40,7 +45,19 @@
     muteFilters = await filtersApi.list();
     allTags = await tagsApi.list();
     allRules = await rulesApi.list();
+    loadOllamaModels();
   });
+
+  async function loadOllamaModels() {
+    try {
+      const res = await settingsApi.ollamaModels();
+      ollamaModels = res.models;
+      ollamaStatus = res.status;
+      ollamaError = res.error || '';
+    } catch {
+      ollamaStatus = 'unreachable';
+    }
+  }
 
   async function saveSettings() {
     saving = true;
@@ -203,19 +220,49 @@
       </div>
 
       <div>
-        <label class="block text-xs text-zinc-400 mb-1.5" for="ollama-model">
-          Ollama model
-        </label>
-        <input
-          id="ollama-model"
-          class="input"
-          type="text"
-          placeholder="qwen3:8b"
-          bind:value={cfg.ollama_model}
-        />
-        <p class="text-xs text-zinc-600 mt-1">
-          Model must be pulled in Ollama first: <code class="text-zinc-500">docker exec ollama ollama pull {cfg.ollama_model}</code>
-        </p>
+        <div class="flex items-center justify-between mb-1.5">
+          <label class="text-xs text-zinc-400" for="ollama-model">Ollama model</label>
+          <div class="flex items-center gap-1.5 text-xs">
+            {#if ollamaStatus === 'ok'}
+              <CheckCircle2 size={12} class="text-emerald-400" />
+              <span class="text-emerald-400">Connected</span>
+            {:else if ollamaStatus === 'unreachable'}
+              <AlertCircle size={12} class="text-red-400" />
+              <span class="text-red-400">Ollama unreachable</span>
+            {/if}
+            <button onclick={loadOllamaModels} class="text-zinc-600 hover:text-zinc-300 transition-colors ml-1" title="Refresh model list">
+              <RefreshCw size={11} />
+            </button>
+          </div>
+        </div>
+
+        {#if ollamaModels.length > 0}
+          <select id="ollama-model" class="input" bind:value={cfg.ollama_model}>
+            {#each ollamaModels as m}
+              <option value={m}>{m}</option>
+            {/each}
+            <!-- Keep current value if not in list -->
+            {#if !ollamaModels.includes(cfg.ollama_model)}
+              <option value={cfg.ollama_model}>{cfg.ollama_model} (not installed)</option>
+            {/if}
+          </select>
+        {:else}
+          <input
+            id="ollama-model"
+            class="input"
+            type="text"
+            placeholder="qwen3:8b"
+            bind:value={cfg.ollama_model}
+          />
+        {/if}
+
+        {#if ollamaStatus === 'unreachable'}
+          <p class="text-xs text-red-400/80 mt-1">{ollamaError || 'Cannot reach Ollama. Is the container running?'}</p>
+        {:else}
+          <p class="text-xs text-zinc-600 mt-1">
+            Pull a model: <code class="text-zinc-500">docker exec rss-reader-ollama-1 ollama pull qwen3:8b</code>
+          </p>
+        {/if}
       </div>
 
       <div class="flex justify-end">

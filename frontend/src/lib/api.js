@@ -92,11 +92,12 @@ export const topics = {
 // Digests
 export const digests = {
   list: (date) => get(`/digests${date ? `?target_date=${date}` : ''}`),
-  generate: (topic_id, date) => post('/digests/generate', { topic_id, date }),
+  generate: (topic_id, date) => post('/digests/generate', { topic_id: topic_id ?? null, date: date ?? null }),
 };
 
 // Settings
 export const settings = {
   get: () => get('/settings'),
   update: (data) => put('/settings', data),
+  ollamaModels: () => get('/settings/ollama-models'),
 };
