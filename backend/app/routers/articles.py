@@ -21,6 +21,7 @@ def _article_to_list_item(article: Article) -> ArticleListItem:
         url=article.url,
         excerpt=article.excerpt,
         image_url=article.image_url,
+        audio_url=article.audio_url,
         author=article.author,
         published_at=article.published_at,
         is_read=article.is_read,
