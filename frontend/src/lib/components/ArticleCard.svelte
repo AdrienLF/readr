@@ -4,7 +4,7 @@
   import { app } from '$lib/stores/app.svelte.js';
   import { articles as articlesApi } from '$lib/api.js';
 
-  let { article, onUpdate, density = 'card' } = $props();
+  let { article, onUpdate, density = 'magazine' } = $props();
 
   function timeAgo(date) {
     if (!date) return '';
@@ -30,7 +30,70 @@
   }
 </script>
 
-{#if density === 'list'}
+{#if density === 'magazine'}
+  <!-- Feedly-style: thumbnail left, text right -->
+  <div
+    role="button"
+    tabindex="0"
+    data-testid="article-card"
+    onclick={open}
+    onkeydown={(e) => e.key === 'Enter' && open()}
+    class="group flex gap-4 py-4 border-b border-zinc-800/50 cursor-pointer transition-colors
+           hover:bg-zinc-900/40 px-1 rounded-lg {article.is_read ? 'opacity-55' : ''}"
+  >
+    <!-- Thumbnail -->
+    {#if article.image_url}
+      <div class="w-32 h-20 shrink-0 rounded-md overflow-hidden bg-zinc-800">
+        <img
+          src={article.image_url}
+          alt=""
+          class="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-300"
+          loading="lazy"
+          onerror={(e) => e.currentTarget.parentElement.remove()}
+        />
+      </div>
+    {:else}
+      <div class="w-32 h-20 shrink-0 rounded-md bg-zinc-800/60 flex items-center justify-center">
+        <Bookmark size={18} class="text-zinc-700" />
+      </div>
+    {/if}
+
+    <!-- Content -->
+    <div class="flex-1 min-w-0 flex flex-col justify-between">
+      <div>
+        <div class="flex items-center gap-1.5 mb-1">
+          {#if !article.is_read}
+            <span class="w-1.5 h-1.5 rounded-full bg-violet-500 shrink-0"></span>
+          {/if}
+          <span class="text-xs text-zinc-500 truncate">{article.feed_title || 'Unknown'}</span>
+          <span class="text-zinc-700 text-xs shrink-0">· {timeAgo(article.published_at)}</span>
+        </div>
+        <h3 class="text-[15px] font-semibold text-zinc-100 leading-snug line-clamp-2
+                   group-hover:text-violet-300 transition-colors mb-1.5">
+          {article.title}
+        </h3>
+        {#if article.excerpt}
+          <p class="text-xs text-zinc-500 line-clamp-2 leading-relaxed">{article.excerpt}</p>
+        {/if}
+      </div>
+      <div class="flex items-center justify-between mt-1.5">
+        <span class="text-xs text-zinc-600 truncate">{article.author || ''}</span>
+        <button
+          onclick={toggleBookmark}
+          class="text-zinc-600 hover:text-amber-400 transition-colors p-1 rounded shrink-0"
+          aria-label="Toggle bookmark"
+        >
+          {#if article.is_bookmarked}
+            <BookmarkCheck size={13} class="text-amber-400" />
+          {:else}
+            <Bookmark size={13} />
+          {/if}
+        </button>
+      </div>
+    </div>
+  </div>
+
+{:else if density === 'list'}
   <!-- Compact list row -->
   <div
     role="button"

@@ -2,7 +2,8 @@ import { feeds as feedsApi, topics as topicsApi } from '$lib/api.js';
 
 class AppState {
   // Navigation
-  selectedTopicId = $state(null); // null = all
+  selectedTopicId = $state(null);
+  selectedFeedId = $state(null);
   activeView = $state('feed'); // feed | bookmarks | search | digest | settings
 
   // Article reader
@@ -18,16 +19,21 @@ class AppState {
   feeds = $state([]);
   topics = $state([]);
 
-  // Derived
   get unreadTotal() {
     return this.feeds.reduce((sum, f) => sum + (f.unread_count || 0), 0);
   }
 
   get currentTopicFeeds() {
     if (this.selectedTopicId === null) return this.feeds;
-    const topic = this.topics.find((t) => t.id === this.selectedTopicId);
-    if (!topic) return [];
     return this.feeds.filter((f) => f.topics?.some((t) => t.id === this.selectedTopicId));
+  }
+
+  feedsForTopic(topicId) {
+    return this.feeds.filter((f) => f.topics?.some((t) => t.id === topicId));
+  }
+
+  get uncategorizedFeeds() {
+    return this.feeds.filter((f) => !f.topics || f.topics.length === 0);
   }
 
   openArticle(id) {
@@ -37,18 +43,31 @@ class AppState {
 
   closeReader() {
     this.readerOpen = false;
-    setTimeout(() => {
-      this.selectedArticleId = null;
-    }, 250);
+    setTimeout(() => { this.selectedArticleId = null; }, 250);
+  }
+
+  selectAll() {
+    this.selectedTopicId = null;
+    this.selectedFeedId = null;
+    this.activeView = 'feed';
+    this.closeReader();
+    if (window.innerWidth < 768) this.sidebarOpen = false;
   }
 
   selectTopic(id) {
     this.selectedTopicId = id;
+    this.selectedFeedId = null;
     this.activeView = 'feed';
     this.closeReader();
-    if (window.innerWidth < 768) {
-      this.sidebarOpen = false;
-    }
+    if (window.innerWidth < 768) this.sidebarOpen = false;
+  }
+
+  selectFeed(id) {
+    this.selectedFeedId = id;
+    this.selectedTopicId = null;
+    this.activeView = 'feed';
+    this.closeReader();
+    if (window.innerWidth < 768) this.sidebarOpen = false;
   }
 
   async loadFeeds() {

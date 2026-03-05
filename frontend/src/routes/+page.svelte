@@ -3,10 +3,11 @@
   import ArticleList from '$lib/components/ArticleList.svelte';
 
   let topicId = $derived(app.selectedTopicId);
+  let feedId  = $derived(app.selectedFeedId);
 </script>
 
 <svelte:head>
   <title>Readr</title>
 </svelte:head>
 
-<ArticleList {topicId} />
+<ArticleList {topicId} {feedId} />
