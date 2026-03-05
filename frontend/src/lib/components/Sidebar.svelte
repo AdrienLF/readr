@@ -1,5 +1,5 @@
 <script>
-  import { Home, Bookmark, Search, Zap, Settings, Plus, Rss, RefreshCw, ChevronRight } from 'lucide-svelte';
+  import { Home, Bookmark, Search, Zap, Settings, Plus, Rss, RefreshCw, ChevronRight, BookOpen } from 'lucide-svelte';
   import { app } from '$lib/stores/app.svelte.js';
   import { feeds as feedsApi } from '$lib/api.js';
 
@@ -29,11 +29,19 @@
     { id: 'search',    label: 'Search',    icon: Search,   path: '/search' },
     { id: 'digest',    label: 'Digest',    icon: Zap,      path: '/digest' },
     { id: 'settings',  label: 'Settings',  icon: Settings, path: '/settings' },
+    { id: 'docs',      label: 'Docs',      icon: BookOpen, path: '/docs' },
   ];
 
   function unreadForTopic(topicId) {
     return app.feedsForTopic(topicId).reduce((s, f) => s + (f.unread_count || 0), 0);
   }
+
+  const healthColor = {
+    ok:    '',
+    never: 'bg-zinc-600',
+    stale: 'bg-amber-500',
+    error: 'bg-red-500',
+  };
 </script>
 
 <aside
@@ -142,6 +150,7 @@
             {#each topicFeeds as feed (feed.id)}
               <button
                 onclick={() => app.selectFeed(feed.id)}
+                title={feed.last_error || undefined}
                 class="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-[12px] transition-colors
                        {app.selectedFeedId === feed.id
                          ? 'bg-violet-600/15 text-violet-300'
@@ -158,7 +167,9 @@
                   <Rss size={11} class="shrink-0 text-zinc-700" />
                 {/if}
                 <span class="flex-1 truncate text-left">{feed.title}</span>
-                {#if feed.unread_count > 0}
+                {#if feed.health && feed.health !== 'ok'}
+                  <span class="w-1.5 h-1.5 rounded-full shrink-0 {healthColor[feed.health]}" title={feed.last_error || feed.health}></span>
+                {:else if feed.unread_count > 0}
                   <span class="text-[11px] text-zinc-500 tabular-nums shrink-0">{feed.unread_count}</span>
                 {/if}
               </button>
@@ -181,6 +192,7 @@
         {#each app.uncategorizedFeeds as feed (feed.id)}
           <button
             onclick={() => app.selectFeed(feed.id)}
+            title={feed.last_error || undefined}
             class="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[13px] transition-colors
                    {app.selectedFeedId === feed.id
                      ? 'bg-violet-600/15 text-violet-300'
@@ -197,7 +209,9 @@
               <Rss size={12} class="shrink-0 text-zinc-700" />
             {/if}
             <span class="flex-1 truncate text-left">{feed.title}</span>
-            {#if feed.unread_count > 0}
+            {#if feed.health && feed.health !== 'ok'}
+              <span class="w-1.5 h-1.5 rounded-full shrink-0 {healthColor[feed.health]}"></span>
+            {:else if feed.unread_count > 0}
               <span class="text-[11px] text-zinc-500 tabular-nums shrink-0">{feed.unread_count}</span>
             {/if}
           </button>

@@ -5,6 +5,12 @@
   import ArticleCard from './ArticleCard.svelte';
   import { RefreshCw, AlignJustify, List, Grid2X2, LayoutGrid } from 'lucide-svelte';
 
+  // Infinite scroll sentinel
+  let sentinelEl = $state(null);
+  // Keyboard nav focused index
+  let focusedIndex = $state(-1);
+  let cardEls = $state([]);
+
   let { topicId = null, feedId = null, bookmarksOnly = false } = $props();
 
   let items = $state([]);
@@ -39,6 +45,77 @@
   }
 
   function loadMore() { page += 1; load(); }
+
+  // Infinite scroll
+  $effect(() => {
+    if (!sentinelEl || !hasMore) return;
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting) untrack(() => loadMore());
+    }, { rootMargin: '300px' });
+    observer.observe(sentinelEl);
+    return () => observer.disconnect();
+  });
+
+  // Keyboard navigation
+  function handleKeydown(e) {
+    const tag = e.target?.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target?.isContentEditable) return;
+    if (app.activeView !== 'feed' && !bookmarksOnly) return;
+
+    const flat = grouped ? grouped.flatMap((g) => g.items) : items;
+
+    switch (e.key) {
+      case 'j': {
+        e.preventDefault();
+        focusedIndex = Math.min(focusedIndex + 1, flat.length - 1);
+        cardEls[focusedIndex]?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        break;
+      }
+      case 'k': {
+        e.preventDefault();
+        focusedIndex = Math.max(focusedIndex - 1, 0);
+        cardEls[focusedIndex]?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        break;
+      }
+      case 'o':
+      case 'Enter': {
+        const a = flat[focusedIndex];
+        if (a) { app.openArticle(a.id); markRead(a); }
+        break;
+      }
+      case 'b': {
+        const a = flat[focusedIndex];
+        if (a) articlesApi.toggleBookmark(a.id).then((u) => handleUpdate({ ...a, is_bookmarked: u.is_bookmarked }));
+        break;
+      }
+      case 'u': {
+        const a = flat[focusedIndex];
+        if (a) {
+          const next = !a.is_read;
+          articlesApi.markRead(a.id, next);
+          handleUpdate({ ...a, is_read: next });
+        }
+        break;
+      }
+      case 'r': {
+        if (!e.ctrlKey && !e.metaKey) { e.preventDefault(); untrack(() => load(true)); }
+        break;
+      }
+    }
+  }
+
+  function markRead(article) {
+    if (!article.is_read) {
+      articlesApi.markRead(article.id);
+      handleUpdate({ ...article, is_read: true });
+    }
+  }
+
+  // Reset focus when content changes
+  $effect(() => {
+    void [topicId, feedId, bookmarksOnly];
+    focusedIndex = -1;
+  });
 
   function handleUpdate(updated) {
     items = items.map((a) => (a.id === updated.id ? updated : a));
@@ -110,6 +187,8 @@
   );
 </script>
 
+<svelte:window onkeydown={handleKeydown} />
+
 <div class="flex flex-col h-full min-h-0" data-testid="article-list">
   <!-- Toolbar -->
   <div class="shrink-0 bg-zinc-950/90 backdrop-blur border-b border-zinc-800/50 px-5 py-3">
@@ -168,31 +247,50 @@
       </div>
     {:else if grouped}
       <!-- Grouped layout (magazine / list) -->
-      <div class="px-5 pb-8">
+      <div class="px-5 pb-4">
         {#each grouped as group}
           <h2 class="text-xs font-semibold text-zinc-500 uppercase tracking-widest mt-6 mb-3 first:mt-4">
             {group.label}
           </h2>
-          {#each group.items as article (article.id)}
-            <ArticleCard {article} onUpdate={handleUpdate} {density} />
+          {#each group.items as article, gi (article.id)}
+            {@const flatIndex = grouped.slice(0, grouped.indexOf(group)).reduce((s, g) => s + g.items.length, 0) + gi}
+            <div bind:this={cardEls[flatIndex]}>
+              <ArticleCard
+                {article}
+                onUpdate={handleUpdate}
+                {density}
+                focused={focusedIndex === flatIndex}
+                onMarkRead={() => markRead(article)}
+              />
+            </div>
           {/each}
         {/each}
+        <!-- Infinite scroll sentinel -->
         {#if hasMore}
-          <div class="flex justify-center pt-6">
-            <button onclick={loadMore} class="btn-ghost" disabled={loading}>{loading ? 'Loading…' : 'Load more'}</button>
+          <div bind:this={sentinelEl} class="h-8 flex items-center justify-center">
+            {#if loading}<span class="text-xs text-zinc-600">Loading…</span>{/if}
           </div>
         {/if}
       </div>
     {:else}
       <!-- Grid / card layout -->
       <div class={gridClass}>
-        {#each items as article (article.id)}
-          <ArticleCard {article} onUpdate={handleUpdate} {density} />
+        {#each items as article, i (article.id)}
+          <div bind:this={cardEls[i]}>
+            <ArticleCard
+              {article}
+              onUpdate={handleUpdate}
+              {density}
+              focused={focusedIndex === i}
+              onMarkRead={() => markRead(article)}
+            />
+          </div>
         {/each}
       </div>
+      <!-- Infinite scroll sentinel -->
       {#if hasMore}
-        <div class="flex justify-center pb-8 pt-2">
-          <button onclick={loadMore} class="btn-ghost" disabled={loading}>{loading ? 'Loading…' : 'Load more'}</button>
+        <div bind:this={sentinelEl} class="h-12 flex items-center justify-center pb-4">
+          {#if loading}<span class="text-xs text-zinc-600">Loading…</span>{/if}
         </div>
       {/if}
     {/if}

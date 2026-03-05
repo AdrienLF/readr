@@ -56,6 +56,10 @@ class FeedResponse(BaseModel):
     source_type: str
     favicon_url: Optional[str]
     last_fetched: Optional[datetime]
+    last_error: Optional[str]
+    error_count: int = 0
+    is_muted: bool = False
+    health: str = "ok"  # ok | stale | error | never
     poll_interval: int
     created_at: datetime
     unread_count: int = 0
@@ -75,6 +79,7 @@ class ArticleResponse(BaseModel):
     excerpt: Optional[str]
     full_content: Optional[str]
     image_url: Optional[str]
+    audio_url: Optional[str]
     author: Optional[str]
     published_at: Optional[datetime]
     fetched_at: datetime
@@ -92,6 +97,7 @@ class ArticleListItem(BaseModel):
     url: str
     excerpt: Optional[str]
     image_url: Optional[str]
+    audio_url: Optional[str]
     author: Optional[str]
     published_at: Optional[datetime]
     is_read: bool
@@ -144,6 +150,30 @@ class SettingsResponse(BaseModel):
     digest_time: str
     ollama_model: str
     fetch_interval: int
+
+
+# --- Mute Filters ---
+
+class MuteFilterCreate(BaseModel):
+    pattern: str
+    is_regex: bool = False
+    feed_id: Optional[int] = None
+
+
+class MuteFilterResponse(BaseModel):
+    id: int
+    pattern: str
+    is_regex: bool
+    feed_id: Optional[int]
+    created_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+
+# --- Feed Discovery ---
+
+class DiscoveredFeed(BaseModel):
+    url: str
+    title: str
 
 
 # --- Pagination ---

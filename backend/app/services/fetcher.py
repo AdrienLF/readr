@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from ..models import Feed, Article
+from ..models import Feed, Article, MuteFilter
 from ..database import SessionLocal
 from .extractor import fetch_full_content, extract_from_html
 
@@ -29,6 +29,48 @@ def normalize_reddit_url(url: str) -> str:
     if not url.endswith(".rss") and not url.endswith(".json"):
         url += ".rss"
     return url
+
+
+async def discover_feeds_from_url(url: str) -> list[dict]:
+    """
+    Given any URL, return a list of {url, title} dicts for candidate feeds.
+    Tries the URL as a direct feed first, then scrapes for <link rel="alternate">.
+    """
+    # Try as a direct feed
+    parsed = feedparser.parse(url)
+    if parsed.entries or parsed.feed.get("title"):
+        title = parsed.feed.get("title") or url
+        return [{"url": url, "title": title}]
+
+    # Fetch HTML and look for feed discovery links
+    try:
+        async with httpx.AsyncClient(timeout=10, follow_redirects=True,
+                                     headers={"User-Agent": "Mozilla/5.0"}) as client:
+            resp = await client.get(url)
+            html = resp.text
+    except Exception:
+        return []
+
+    from urllib.parse import urljoin
+    patterns = [
+        r'<link[^>]+type=["\']application/(?:rss|atom)\+xml["\'][^>]*href=["\']([^"\']+)["\']',
+        r'<link[^>]+href=["\']([^"\']+)["\'][^>]+type=["\']application/(?:rss|atom)\+xml["\']',
+    ]
+    found_urls: list[str] = []
+    for pat in patterns:
+        found_urls += re.findall(pat, html, re.IGNORECASE)
+
+    results = []
+    seen = set()
+    for feed_url in found_urls[:5]:
+        full_url = urljoin(url, feed_url)
+        if full_url in seen:
+            continue
+        seen.add(full_url)
+        p = feedparser.parse(full_url)
+        results.append({"url": full_url, "title": p.feed.get("title") or full_url})
+
+    return results
 
 
 async def discover_feed(url: str) -> dict:
@@ -73,17 +115,47 @@ def _parse_date(entry) -> datetime | None:
     return None
 
 
+def _is_muted(title: str, excerpt: str, filters: list) -> bool:
+    """Return True if the article matches any mute filter."""
+    text = f"{title} {excerpt or ''}".lower()
+    for f in filters:
+        try:
+            if f.is_regex:
+                if re.search(f.pattern, text, re.IGNORECASE):
+                    return True
+            else:
+                if f.pattern.lower() in text:
+                    return True
+        except Exception:
+            pass
+    return False
+
+
 async def fetch_and_store_feed(feed_id: int):
     async with SessionLocal() as db:
         feed = await db.get(Feed, feed_id)
         if not feed:
             return
 
+        # Load mute filters (global + feed-specific)
+        filters_result = await db.execute(
+            select(MuteFilter).where(
+                (MuteFilter.feed_id == None) | (MuteFilter.feed_id == feed_id)
+            )
+        )
+        mute_filters = filters_result.scalars().all()
+
         logger.info(f"Fetching feed: {feed.title or feed.url}")
         try:
             parsed = feedparser.parse(feed.url)
+            if not parsed.entries and parsed.get("bozo") and not parsed.feed.get("title"):
+                raise Exception(str(parsed.get("bozo_exception", "Empty feed / unreachable")))
         except Exception as e:
-            logger.error(f"feedparser error for {feed.url}: {e}")
+            feed.last_error = str(e)[:500]
+            feed.error_count = (feed.error_count or 0) + 1
+            feed.last_fetched = datetime.utcnow()
+            await db.commit()
+            logger.error(f"Error fetching {feed.url}: {e}")
             return
 
         new_count = 0
@@ -103,14 +175,18 @@ async def fetch_and_store_feed(feed_id: int):
             published_at = _parse_date(entry)
             author = entry.get("author") or entry.get("author_detail", {}).get("name")
 
-            # Determine image from RSS first
             image_url = _get_rss_image(entry)
+            audio_url = _get_audio_url(entry)
+
+            # Apply mute filters
+            if _is_muted(title, rss_excerpt or "", mute_filters):
+                logger.debug(f"  Muted: {title}")
+                continue
 
             full_content = None
             excerpt = rss_excerpt
 
             if feed.source_type == "reddit":
-                # For Reddit self-posts, RSS content is already the body
                 if rss_content and len(rss_content) > 100:
                     full_content = rss_content
                     if not excerpt:
@@ -118,7 +194,6 @@ async def fetch_and_store_feed(feed_id: int):
                         text = _re.sub(r"<[^>]+>", "", rss_content)
                         excerpt = text[:400] + "…" if len(text) > 400 else text
                 else:
-                    # Link post — fetch external article
                     full_content, extracted_excerpt, extracted_image = await fetch_full_content(url)
                     if not excerpt:
                         excerpt = extracted_excerpt
@@ -138,6 +213,7 @@ async def fetch_and_store_feed(feed_id: int):
                 excerpt=excerpt,
                 full_content=full_content,
                 image_url=image_url,
+                audio_url=audio_url,
                 author=author,
                 published_at=published_at,
             )
@@ -145,6 +221,8 @@ async def fetch_and_store_feed(feed_id: int):
             new_count += 1
 
         feed.last_fetched = datetime.utcnow()
+        feed.last_error = None
+        feed.error_count = 0
         await db.commit()
         logger.info(f"  → {new_count} new articles from {feed.title or feed.url}")
 
@@ -166,6 +244,15 @@ def _get_rss_excerpt(entry) -> str | None:
         import re
         text = re.sub(r"<[^>]+>", "", summary)
         return text[:400] + "…" if len(text) > 400 else text
+    return None
+
+
+def _get_audio_url(entry) -> str | None:
+    """Return audio enclosure URL if this is a podcast entry."""
+    for enc in getattr(entry, "enclosures", []):
+        mime = enc.get("type", "")
+        if mime.startswith("audio/"):
+            return enc.get("href") or enc.get("url")
     return None
 
 

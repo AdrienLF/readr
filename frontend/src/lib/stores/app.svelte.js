@@ -14,6 +14,7 @@ class AppState {
   sidebarOpen = $state(true);
   addFeedOpen = $state(false);
   addTopicOpen = $state(false);
+  shortcutsVisible = $state(false);
 
   // Data
   feeds = $state([]);

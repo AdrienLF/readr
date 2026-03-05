@@ -8,6 +8,17 @@
   import AddFeedModal from '$lib/components/AddFeedModal.svelte';
   import TopicModal from '$lib/components/TopicModal.svelte';
   import MobileNav from '$lib/components/MobileNav.svelte';
+  import KeyboardHelp from '$lib/components/KeyboardHelp.svelte';
+
+  function handleGlobalKey(e) {
+    const tag = e.target?.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target?.isContentEditable) return;
+    if (e.key === '?') { e.preventDefault(); app.shortcutsVisible = !app.shortcutsVisible; }
+    if (e.key === 'Escape') {
+      if (app.shortcutsVisible) app.shortcutsVisible = false;
+      else if (app.readerOpen) app.closeReader();
+    }
+  }
 
   let { children } = $props();
 
@@ -19,6 +30,8 @@
     }
   });
 </script>
+
+<svelte:window onkeydown={handleGlobalKey} />
 
 <div class="flex h-screen overflow-hidden bg-zinc-950">
   <!-- Mobile sidebar backdrop -->
@@ -79,4 +92,7 @@
 
   <!-- Mobile bottom nav -->
   <MobileNav />
+
+  <!-- Keyboard help overlay -->
+  <KeyboardHelp />
 </div>

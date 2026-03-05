@@ -23,6 +23,9 @@ class Feed(Base):
     source_type: Mapped[str] = mapped_column(String(32), default="rss")  # rss | reddit | rsshub
     favicon_url: Mapped[Optional[str]] = mapped_column(String(2048))
     last_fetched: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    last_error: Mapped[Optional[str]] = mapped_column(Text)
+    error_count: Mapped[int] = mapped_column(Integer, default=0)
+    is_muted: Mapped[bool] = mapped_column(Boolean, default=False)
     poll_interval: Mapped[int] = mapped_column(Integer, default=3600)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
 
@@ -49,6 +52,7 @@ class Article(Base):
     fetched_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
     is_read: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     is_bookmarked: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    audio_url: Mapped[Optional[str]] = mapped_column(String(2048))
 
     feed: Mapped["Feed"] = relationship(back_populates="articles")
 
@@ -79,6 +83,19 @@ class Digest(Base):
     generated_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
 
     topic: Mapped[Optional["Topic"]] = relationship(back_populates="digests")
+
+
+class MuteFilter(Base):
+    __tablename__ = "mute_filters"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    pattern: Mapped[str] = mapped_column(String(512))
+    is_regex: Mapped[bool] = mapped_column(Boolean, default=False)
+    # NULL = global; set to a feed_id to scope to one feed
+    feed_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("feeds.id", ondelete="CASCADE"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
 
 
 class Setting(Base):

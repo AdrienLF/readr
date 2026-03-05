@@ -29,6 +29,20 @@ export const feeds = {
   delete: (id) => del(`/feeds/${id}`),
   refresh: (id) => post(`/feeds/${id}/refresh`),
   refreshAll: () => post('/feeds/refresh-all'),
+  exportOpml: () => fetch('/api/feeds/opml').then((r) => r.blob()),
+  importOpml: (file) => {
+    const form = new FormData();
+    form.append('file', file);
+    return fetch('/api/feeds/opml', { method: 'POST', body: form }).then((r) => r.json());
+  },
+  discover: (url) => get(`/feeds/discover?url=${encodeURIComponent(url)}`),
+};
+
+// Mute filters
+export const filters = {
+  list: () => get('/filters'),
+  create: (data) => post('/filters', data),
+  delete: (id) => del(`/filters/${id}`),
 };
 
 // Articles

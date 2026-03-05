@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .database import init_db
 from .services.scheduler import start_scheduler, stop_scheduler
-from .routers import feeds, articles, topics, digests, settings
+from .routers import feeds, articles, topics, digests, settings, filters
 
 
 @asynccontextmanager
@@ -29,6 +29,7 @@ app.include_router(articles.router, prefix="/api/articles", tags=["articles"])
 app.include_router(topics.router, prefix="/api/topics", tags=["topics"])
 app.include_router(digests.router, prefix="/api/digests", tags=["digests"])
 app.include_router(settings.router, prefix="/api/settings", tags=["settings"])
+app.include_router(filters.router, prefix="/api/filters", tags=["filters"])
 
 
 @app.get("/api/health")

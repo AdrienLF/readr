@@ -56,3 +56,16 @@ async def init_db():
                 ('ollama_model', 'qwen3:8b'),
                 ('fetch_interval', '3600')
         """))
+
+        # Column migrations for existing databases (SQLite has no IF NOT EXISTS for ALTER)
+        migrations = [
+            "ALTER TABLE feeds ADD COLUMN last_error TEXT",
+            "ALTER TABLE feeds ADD COLUMN error_count INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE feeds ADD COLUMN is_muted INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE articles ADD COLUMN audio_url TEXT",
+        ]
+        for sql in migrations:
+            try:
+                await conn.execute(text(sql))
+            except Exception:
+                pass  # Column already exists

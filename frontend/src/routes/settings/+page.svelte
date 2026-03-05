@@ -1,8 +1,8 @@
 <script>
   import { onMount } from 'svelte';
-  import { Settings, Trash2, RefreshCw, Plus, Edit2, Check } from 'lucide-svelte';
+  import { Settings, Trash2, RefreshCw, Plus, Edit2, Check, Upload, Download, X } from 'lucide-svelte';
   import { app } from '$lib/stores/app.svelte.js';
-  import { settings as settingsApi, feeds as feedsApi, topics as topicsApi } from '$lib/api.js';
+  import { settings as settingsApi, feeds as feedsApi, topics as topicsApi, filters as filtersApi } from '$lib/api.js';
 
   app.activeView = 'settings';
 
@@ -11,8 +11,19 @@
   let saved = $state(false);
   let editingFeed = $state(null);
 
+  // OPML
+  let importStatus = $state('');
+  let fileInput = $state(null);
+
+  // Mute filters
+  let muteFilters = $state([]);
+  let newPattern = $state('');
+  let newIsRegex = $state(false);
+  let newFeedId = $state(null);
+
   onMount(async () => {
     cfg = await settingsApi.get();
+    muteFilters = await filtersApi.list();
   });
 
   async function saveSettings() {
@@ -42,6 +53,45 @@
     await feedsApi.update(feed.id, { title: feed.title });
     await app.loadFeeds();
     editingFeed = null;
+  }
+
+  async function exportOpml() {
+    const blob = await feedsApi.exportOpml();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'readr-feeds.opml';
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function importOpml(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    importStatus = 'Importing…';
+    try {
+      const result = await feedsApi.importOpml(file);
+      importStatus = `Imported ${result.imported} feeds, skipped ${result.skipped} duplicates.`;
+      await app.loadFeeds();
+      await app.loadTopics();
+    } catch (err) {
+      importStatus = `Error: ${err.message}`;
+    }
+    e.target.value = '';
+  }
+
+  async function addFilter() {
+    if (!newPattern.trim()) return;
+    const f = await filtersApi.create({ pattern: newPattern.trim(), is_regex: newIsRegex, feed_id: newFeedId });
+    muteFilters = [...muteFilters, f];
+    newPattern = '';
+    newIsRegex = false;
+    newFeedId = null;
+  }
+
+  async function removeFilter(id) {
+    await filtersApi.delete(id);
+    muteFilters = muteFilters.filter((f) => f.id !== id);
   }
 </script>
 
@@ -162,6 +212,96 @@
           <p class="text-sm text-zinc-600 px-3 py-2">No feeds added yet</p>
         {/if}
       </div>
+    </section>
+
+    <!-- OPML Import / Export -->
+    <section class="card p-5 space-y-4">
+      <h2 class="text-sm font-semibold text-zinc-300">Import / Export</h2>
+      <div class="flex flex-wrap gap-3">
+        <button onclick={exportOpml} class="btn-ghost text-xs">
+          <Download size={13} /> Export OPML
+        </button>
+        <label class="btn-ghost text-xs cursor-pointer">
+          <Upload size={13} /> Import OPML
+          <input bind:this={fileInput} type="file" accept=".opml,.xml" class="hidden" onchange={importOpml} />
+        </label>
+      </div>
+      {#if importStatus}
+        <p class="text-xs {importStatus.startsWith('Error') ? 'text-red-400' : 'text-emerald-400'}">{importStatus}</p>
+      {/if}
+      <p class="text-xs text-zinc-600">
+        OPML preserves topic/folder structure on export. On import, folders become topics automatically.
+      </p>
+    </section>
+
+    <!-- Mute Filters -->
+    <section class="card p-5 space-y-4">
+      <h2 class="text-sm font-semibold text-zinc-300">Mute Filters</h2>
+      <p class="text-xs text-zinc-500">
+        Articles whose title or excerpt matches a filter are silently skipped during fetch.
+        Supports plain keywords or regular expressions.
+      </p>
+
+      <!-- Add filter -->
+      <div class="flex gap-2 items-end flex-wrap">
+        <div class="flex-1 min-w-[160px]">
+          <label class="block text-xs text-zinc-400 mb-1" for="mute-pattern">Pattern</label>
+          <input
+            id="mute-pattern"
+            class="input text-sm"
+            type="text"
+            placeholder="e.g. sponsored, ^Breaking"
+            bind:value={newPattern}
+            onkeydown={(e) => e.key === 'Enter' && addFilter()}
+          />
+        </div>
+        <div>
+          <label class="block text-xs text-zinc-400 mb-1" for="mute-feed">Feed (optional)</label>
+          <select
+            id="mute-feed"
+            class="input text-sm"
+            bind:value={newFeedId}
+          >
+            <option value={null}>Global</option>
+            {#each app.feeds as feed (feed.id)}
+              <option value={feed.id}>{feed.title}</option>
+            {/each}
+          </select>
+        </div>
+        <label class="flex items-center gap-1.5 text-xs text-zinc-400 pb-2 cursor-pointer">
+          <input type="checkbox" bind:checked={newIsRegex} class="rounded" />
+          Regex
+        </label>
+        <button onclick={addFilter} class="btn-primary text-xs py-1.5 pb-2" disabled={!newPattern.trim()}>
+          <Plus size={13} /> Add
+        </button>
+      </div>
+
+      <!-- Filter list -->
+      {#if muteFilters.length > 0}
+        <div class="space-y-1">
+          {#each muteFilters as f (f.id)}
+            <div class="flex items-center gap-3 px-3 py-2 rounded-lg bg-zinc-800/50">
+              <code class="flex-1 text-xs text-zinc-300 truncate">{f.pattern}</code>
+              {#if f.is_regex}
+                <span class="text-[10px] font-mono text-violet-400 bg-violet-950/40 px-1.5 py-0.5 rounded">regex</span>
+              {/if}
+              {#if f.feed_id}
+                <span class="text-xs text-zinc-500 truncate max-w-[120px]">
+                  {app.feeds.find((fd) => fd.id === f.feed_id)?.title ?? 'feed'}
+                </span>
+              {:else}
+                <span class="text-xs text-zinc-600">global</span>
+              {/if}
+              <button onclick={() => removeFilter(f.id)} class="text-zinc-600 hover:text-red-400 transition-colors p-1 rounded">
+                <X size={12} />
+              </button>
+            </div>
+          {/each}
+        </div>
+      {:else}
+        <p class="text-xs text-zinc-600 italic">No filters yet</p>
+      {/if}
     </section>
 
     <!-- Topics -->
