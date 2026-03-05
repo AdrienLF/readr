@@ -1,8 +1,8 @@
 <script>
   import { onMount } from 'svelte';
-  import { Settings, Trash2, RefreshCw, Plus, Edit2, Check, Upload, Download, X } from 'lucide-svelte';
+  import { Settings, Trash2, RefreshCw, Plus, Edit2, Check, Upload, Download, X, Tag, Zap, ToggleLeft, ToggleRight } from 'lucide-svelte';
   import { app } from '$lib/stores/app.svelte.js';
-  import { settings as settingsApi, feeds as feedsApi, topics as topicsApi, filters as filtersApi } from '$lib/api.js';
+  import { settings as settingsApi, feeds as feedsApi, topics as topicsApi, filters as filtersApi, tags as tagsApi, rules as rulesApi } from '$lib/api.js';
 
   app.activeView = 'settings';
 
@@ -21,9 +21,25 @@
   let newIsRegex = $state(false);
   let newFeedId = $state(null);
 
+  // Tags
+  let allTags = $state([]);
+  let newTagName = $state('');
+  let newTagColor = $state('#6366f1');
+
+  // Rules
+  let allRules = $state([]);
+  let newRuleName = $state('');
+  let newRuleField = $state('title');
+  let newRuleOp = $state('contains');
+  let newRuleValue = $state('');
+  let newRuleAction = $state('mark_read');
+  let newRuleTagId = $state('');
+
   onMount(async () => {
     cfg = await settingsApi.get();
     muteFilters = await filtersApi.list();
+    allTags = await tagsApi.list();
+    allRules = await rulesApi.list();
   });
 
   async function saveSettings() {
@@ -92,6 +108,54 @@
   async function removeFilter(id) {
     await filtersApi.delete(id);
     muteFilters = muteFilters.filter((f) => f.id !== id);
+  }
+
+  async function addTag() {
+    if (!newTagName.trim()) return;
+    const t = await tagsApi.create({ name: newTagName.trim(), color: newTagColor });
+    allTags = [...allTags, t];
+    newTagName = '';
+    newTagColor = '#6366f1';
+  }
+
+  async function removeTag(id) {
+    await tagsApi.delete(id);
+    allTags = allTags.filter((t) => t.id !== id);
+  }
+
+  function getRuleActionLabel(action) {
+    if (action === 'mark_read') return 'Mark as read';
+    if (action === 'save') return 'Save for later';
+    if (action === 'bookmark') return 'Bookmark';
+    if (action === 'mute') return 'Mute (discard)';
+    if (action.startsWith('tag:')) {
+      const tagId = parseInt(action.split(':')[1]);
+      return `Tag: ${allTags.find((t) => t.id === tagId)?.name ?? tagId}`;
+    }
+    return action;
+  }
+
+  async function addRule() {
+    if (!newRuleName.trim() || !newRuleValue.trim()) return;
+    const action = newRuleAction === 'tag' ? `tag:${newRuleTagId}` : newRuleAction;
+    const rule = await rulesApi.create({
+      name: newRuleName.trim(),
+      condition: { field: newRuleField, op: newRuleOp, value: newRuleValue.trim() },
+      action,
+    });
+    allRules = [...allRules, rule];
+    newRuleName = '';
+    newRuleValue = '';
+  }
+
+  async function toggleRule(rule) {
+    const updated = await rulesApi.update(rule.id, { is_active: !rule.is_active });
+    allRules = allRules.map((r) => (r.id === updated.id ? updated : r));
+  }
+
+  async function removeRule(id) {
+    await rulesApi.delete(id);
+    allRules = allRules.filter((r) => r.id !== id);
   }
 </script>
 
@@ -301,6 +365,149 @@
         </div>
       {:else}
         <p class="text-xs text-zinc-600 italic">No filters yet</p>
+      {/if}
+    </section>
+
+    <!-- Tags -->
+    <section class="card p-5 space-y-4">
+      <h2 class="text-sm font-semibold text-zinc-300 flex items-center gap-2">
+        <Tag size={14} class="text-violet-400" /> Tags
+      </h2>
+      <p class="text-xs text-zinc-500">
+        Tags can be applied manually in the reader, or automatically via Rules.
+      </p>
+
+      <!-- Add tag -->
+      <div class="flex gap-2 items-end flex-wrap">
+        <div class="flex-1 min-w-[140px]">
+          <label class="block text-xs text-zinc-400 mb-1" for="tag-name">Tag name</label>
+          <input id="tag-name" class="input text-sm" type="text" placeholder="e.g. To Read" bind:value={newTagName}
+            onkeydown={(e) => e.key === 'Enter' && addTag()} />
+        </div>
+        <div>
+          <label class="block text-xs text-zinc-400 mb-1" for="tag-color">Color</label>
+          <input id="tag-color" type="color" class="h-9 w-14 rounded border border-zinc-700 bg-zinc-900 cursor-pointer"
+            bind:value={newTagColor} />
+        </div>
+        <button onclick={addTag} class="btn-primary text-xs py-1.5" disabled={!newTagName.trim()}>
+          <Plus size={13} /> Add
+        </button>
+      </div>
+
+      {#if allTags.length > 0}
+        <div class="flex flex-wrap gap-2">
+          {#each allTags as tag (tag.id)}
+            <div class="flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs"
+              style="color: {tag.color}; border-color: {tag.color}40; background: {tag.color}15">
+              <span>{tag.name}</span>
+              <button onclick={() => removeTag(tag.id)} class="hover:opacity-70 transition-opacity ml-0.5">
+                <X size={11} />
+              </button>
+            </div>
+          {/each}
+        </div>
+      {:else}
+        <p class="text-xs text-zinc-600 italic">No tags yet</p>
+      {/if}
+    </section>
+
+    <!-- Rules -->
+    <section class="card p-5 space-y-4">
+      <h2 class="text-sm font-semibold text-zinc-300 flex items-center gap-2">
+        <Zap size={14} class="text-violet-400" /> Automation Rules
+      </h2>
+      <p class="text-xs text-zinc-500">
+        Rules are evaluated at fetch time. Matching articles are automatically acted upon.
+      </p>
+
+      <!-- Add rule -->
+      <div class="space-y-3 p-3 bg-zinc-800/40 rounded-lg border border-zinc-800">
+        <p class="text-xs font-semibold text-zinc-400">New rule</p>
+        <div>
+          <label class="block text-xs text-zinc-400 mb-1" for="rule-name">Rule name</label>
+          <input id="rule-name" class="input text-sm" type="text" placeholder="e.g. Auto-save AI articles"
+            bind:value={newRuleName} />
+        </div>
+        <div class="grid grid-cols-3 gap-2">
+          <div>
+            <label class="block text-xs text-zinc-400 mb-1">Field</label>
+            <select class="input text-sm" bind:value={newRuleField}>
+              <option value="title">Title</option>
+              <option value="author">Author</option>
+              <option value="excerpt">Excerpt</option>
+              <option value="feed_id">Feed ID</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs text-zinc-400 mb-1">Condition</label>
+            <select class="input text-sm" bind:value={newRuleOp}>
+              <option value="contains">contains</option>
+              <option value="not_contains">doesn't contain</option>
+              <option value="equals">equals</option>
+              <option value="matches">regex matches</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs text-zinc-400 mb-1">Value</label>
+            <input class="input text-sm" type="text" placeholder="e.g. AI, GPT" bind:value={newRuleValue} />
+          </div>
+        </div>
+        <div class="flex gap-2 items-end">
+          <div class="flex-1">
+            <label class="block text-xs text-zinc-400 mb-1">Action</label>
+            <select class="input text-sm" bind:value={newRuleAction}>
+              <option value="mark_read">Mark as read</option>
+              <option value="save">Save for later</option>
+              <option value="bookmark">Bookmark</option>
+              <option value="mute">Mute (discard)</option>
+              <option value="tag">Apply tag…</option>
+            </select>
+          </div>
+          {#if newRuleAction === 'tag'}
+            <div class="flex-1">
+              <label class="block text-xs text-zinc-400 mb-1">Tag</label>
+              <select class="input text-sm" bind:value={newRuleTagId}>
+                {#each allTags as t (t.id)}
+                  <option value={t.id}>{t.name}</option>
+                {/each}
+              </select>
+            </div>
+          {/if}
+          <button onclick={addRule} class="btn-primary text-xs py-1.5 shrink-0"
+            disabled={!newRuleName.trim() || !newRuleValue.trim() || (newRuleAction === 'tag' && !newRuleTagId)}>
+            <Plus size={13} /> Add Rule
+          </button>
+        </div>
+      </div>
+
+      <!-- Rule list -->
+      {#if allRules.length > 0}
+        <div class="space-y-2">
+          {#each allRules as rule (rule.id)}
+            <div class="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-zinc-800/50 {rule.is_active ? '' : 'opacity-50'}">
+              <button onclick={() => toggleRule(rule)} class="shrink-0 text-zinc-500 hover:text-violet-400 transition-colors"
+                title={rule.is_active ? 'Disable rule' : 'Enable rule'}>
+                {#if rule.is_active}
+                  <ToggleRight size={18} class="text-violet-400" />
+                {:else}
+                  <ToggleLeft size={18} />
+                {/if}
+              </button>
+              <div class="flex-1 min-w-0">
+                <p class="text-sm text-zinc-200 truncate">{rule.name}</p>
+                <p class="text-xs text-zinc-500 truncate">
+                  {rule.condition.field} {rule.condition.op} "<span class="text-zinc-400">{rule.condition.value}</span>"
+                  → <span class="text-violet-400">{getRuleActionLabel(rule.action)}</span>
+                </p>
+              </div>
+              <button onclick={() => removeRule(rule.id)} class="text-zinc-600 hover:text-red-400 transition-colors p-1 rounded shrink-0">
+                <Trash2 size={13} />
+              </button>
+            </div>
+          {/each}
+        </div>
+      {:else}
+        <p class="text-xs text-zinc-600 italic">No rules yet</p>
       {/if}
     </section>
 

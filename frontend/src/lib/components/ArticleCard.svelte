@@ -1,6 +1,6 @@
 <script>
   import { formatDistanceToNow } from 'date-fns';
-  import { Bookmark, BookmarkCheck } from 'lucide-svelte';
+  import { Bookmark, BookmarkCheck, BookmarkPlus } from 'lucide-svelte';
   import { app } from '$lib/stores/app.svelte.js';
   import { articles as articlesApi } from '$lib/api.js';
 
@@ -90,6 +90,9 @@
           <span class="text-xs text-zinc-500 truncate">{article.feed_title || 'Unknown'}</span>
           {#if article.audio_url}
             <span class="text-[10px] font-semibold text-violet-400 bg-violet-950/60 px-1.5 py-0.5 rounded shrink-0">PODCAST</span>
+          {/if}
+          {#if article.is_saved}
+            <BookmarkPlus size={11} class="text-violet-400 shrink-0" />
           {/if}
           <span class="text-zinc-700 text-xs shrink-0">· {timeAgo(article.published_at)}</span>
         </div>

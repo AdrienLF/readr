@@ -11,7 +11,7 @@
   let focusedIndex = $state(-1);
   let cardEls = $state([]);
 
-  let { topicId = null, feedId = null, bookmarksOnly = false } = $props();
+  let { topicId = null, feedId = null, bookmarksOnly = false, savedOnly = false } = $props();
 
   let items = $state([]);
   let total = $state(0);
@@ -34,6 +34,7 @@
         ...(topicId !== null && { topic_id: topicId }),
         ...(feedId !== null && { feed_id: feedId }),
         ...(bookmarksOnly && { is_bookmarked: true }),
+        ...(savedOnly && { is_saved: true }),
       };
       const res = await articlesApi.list(params);
       items = reset ? res.items : [...items, ...res.items];
@@ -60,7 +61,7 @@
   function handleKeydown(e) {
     const tag = e.target?.tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target?.isContentEditable) return;
-    if (app.activeView !== 'feed' && !bookmarksOnly) return;
+    if (app.activeView !== 'feed' && !bookmarksOnly && !savedOnly) return;
 
     const flat = grouped ? grouped.flatMap((g) => g.items) : items;
 
@@ -113,17 +114,18 @@
 
   // Reset focus when content changes
   $effect(() => {
-    void [topicId, feedId, bookmarksOnly];
+    void [topicId, feedId, bookmarksOnly, savedOnly];
     focusedIndex = -1;
   });
 
   function handleUpdate(updated) {
     items = items.map((a) => (a.id === updated.id ? updated : a));
     if (bookmarksOnly && !updated.is_bookmarked) items = items.filter((a) => a.id !== updated.id);
+    if (savedOnly && !updated.is_saved) items = items.filter((a) => a.id !== updated.id);
   }
 
   $effect(() => {
-    void [topicId, feedId, bookmarksOnly];
+    void [topicId, feedId, bookmarksOnly, savedOnly];
     untrack(() => load(true));
   });
 
@@ -183,7 +185,9 @@
         ? (app.topics.find((t) => t.id === topicId)?.name ?? 'Topic')
         : bookmarksOnly
           ? 'Bookmarks'
-          : 'All Articles'
+          : savedOnly
+            ? 'Saved for Later'
+            : 'All Articles'
   );
 </script>
 

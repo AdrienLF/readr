@@ -80,6 +80,33 @@ Articles:
         return None
 
 
+async def summarize_article(article) -> str | None:
+    """Generate a concise summary for a single article using Ollama."""
+    content = article.full_content or article.excerpt or ""
+    if not content.strip():
+        return None
+
+    model = await _get_ollama_model()
+    text = content[:4000]  # Cap to avoid context overflow
+    prompt = f"""Summarize the following article in 3-5 sentences. Be concise and factual. Do not add opinion.
+
+Title: {article.title}
+
+Content:
+{text}"""
+
+    try:
+        client = AsyncClient(host=app_settings.ollama_base_url)
+        response = await client.chat(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return response.message.content
+    except Exception as e:
+        logger.error(f"Ollama summarize error: {e}")
+        return None
+
+
 async def generate_all_digests(target_date: str | None = None, topic_id: int | None = None):
     if target_date is None:
         target_date = date.today().isoformat()

@@ -4,7 +4,7 @@ class AppState {
   // Navigation
   selectedTopicId = $state(null);
   selectedFeedId = $state(null);
-  activeView = $state('feed'); // feed | bookmarks | search | digest | settings
+  activeView = $state('feed'); // feed | bookmarks | saved | search | digest | settings
 
   // Article reader
   selectedArticleId = $state(null);

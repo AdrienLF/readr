@@ -58,7 +58,27 @@ export const articles = {
   search: (q, page = 1) => get(`/articles/search?q=${encodeURIComponent(q)}&page=${page}`),
   markRead: (id, is_read = true) => patch(`/articles/${id}/read?is_read=${is_read}`),
   toggleBookmark: (id) => patch(`/articles/${id}/bookmark`),
+  toggleSaved: (id) => patch(`/articles/${id}/saved`),
+  updateNote: (id, note) => patch(`/articles/${id}/note`, { note }),
+  summarize: (id) => post(`/articles/${id}/summarize`),
+  addTag: (id, tag_id) => post(`/articles/${id}/tags/${tag_id}`),
+  removeTag: (id, tag_id) => del(`/articles/${id}/tags/${tag_id}`),
   getComments: (id) => get(`/articles/${id}/comments`),
+};
+
+// Tags
+export const tags = {
+  list: () => get('/tags'),
+  create: (data) => post('/tags', data),
+  delete: (id) => del(`/tags/${id}`),
+};
+
+// Rules
+export const rules = {
+  list: () => get('/rules'),
+  create: (data) => post('/rules', data),
+  update: (id, data) => patch(`/rules/${id}`, data),
+  delete: (id) => del(`/rules/${id}`),
 };
 
 // Topics

@@ -1,6 +1,6 @@
 <script>
   import { app } from '$lib/stores/app.svelte.js';
-  import { BookOpen, Rss, Keyboard, Filter, Download, Zap, Youtube, Headphones, Globe } from 'lucide-svelte';
+  import { BookOpen, Rss, Keyboard, Filter, Download, Zap, Youtube, Headphones, Globe, Tag } from 'lucide-svelte';
 
   app.activeView = 'docs';
 
@@ -12,7 +12,8 @@
     { id: 'organization',    label: 'Topics & Organization' },
     { id: 'filters',         label: 'Mute Filters' },
     { id: 'opml',            label: 'OPML Import / Export' },
-    { id: 'ai',              label: 'AI Digest' },
+    { id: 'ai',              label: 'AI Digest & Summary' },
+    { id: 'tags-rules',      label: 'Tags & Rules' },
     { id: 'settings',        label: 'Settings Reference' },
   ];
 
@@ -201,22 +202,61 @@
         </div>
       </section>
 
-      <!-- AI Digest -->
+      <!-- AI Digest & Summary -->
       <section id="ai">
         <h2 class="text-base font-semibold text-zinc-200 mb-4 flex items-center gap-2">
-          <Zap size={16} class="text-violet-400" /> AI Digest
+          <Zap size={16} class="text-violet-400" /> AI Digest &amp; Summary
         </h2>
         <div class="space-y-3 text-sm text-zinc-400 leading-relaxed">
-          <p>Readr uses a local <a href="https://ollama.com" target="_blank" rel="noopener" class="text-violet-400 hover:underline">Ollama</a> instance to generate a daily news digest. No data leaves your machine.</p>
+          <p>Readr uses a local <a href="https://ollama.com" target="_blank" rel="noopener" class="text-violet-400 hover:underline">Ollama</a> instance for AI features. No data leaves your machine.</p>
+          <p class="font-medium text-zinc-300">Daily Digest</p>
           <ul class="list-disc list-inside space-y-1.5 ml-1">
-            <li>By default the digest is generated daily at <strong class="text-zinc-300">07:00</strong>. Change this in Settings.</li>
-            <li>Navigate to <strong class="text-zinc-300">Digest</strong> in the sidebar to read today's summary or generate one on demand.</li>
-            <li>Digests can be scoped to a specific Topic, or cover all feeds.</li>
+            <li>Generated daily at <strong class="text-zinc-300">07:00</strong> (configurable in Settings).</li>
+            <li>Navigate to <strong class="text-zinc-300">Digest</strong> in the sidebar to read today's summary or trigger one on demand.</li>
+            <li>Digests can be scoped to a specific Topic or cover all feeds.</li>
+          </ul>
+          <p class="font-medium text-zinc-300">Per-article Summary</p>
+          <ul class="list-disc list-inside space-y-1.5 ml-1">
+            <li>Open any article and click the <strong class="text-zinc-300">⚡ lightning</strong> button in the toolbar.</li>
+            <li>The summary is generated once and cached — subsequent opens show it instantly.</li>
           </ul>
           <div class="bg-zinc-900/60 border border-zinc-800 rounded-lg p-4 text-xs space-y-2">
             <p class="font-medium text-zinc-300">Pulling a model manually</p>
             <code class="block text-violet-300">docker exec rss-reader-ollama-1 ollama pull qwen3:8b</code>
-            <p class="text-zinc-500">The model must be pulled before Readr can generate a digest. Check Settings → Ollama model for your configured model name.</p>
+            <p class="text-zinc-500">The model must be pulled before Readr can generate digests or summaries.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Tags & Rules -->
+      <section id="tags-rules">
+        <h2 class="text-base font-semibold text-zinc-200 mb-4 flex items-center gap-2">
+          <Tag size={16} class="text-violet-400" /> Tags &amp; Rules
+        </h2>
+        <div class="space-y-4 text-sm text-zinc-400 leading-relaxed">
+          <div>
+            <p class="text-zinc-300 font-medium mb-1.5">Tags</p>
+            <p>Tags are colored labels you can apply to articles for personal organization. Create them in <strong class="text-zinc-300">Settings → Tags</strong>, then apply them in the article reader toolbar.</p>
+          </div>
+          <div>
+            <p class="text-zinc-300 font-medium mb-1.5">Notes</p>
+            <p>Each article has a private note field. Click the <strong class="text-zinc-300">sticky-note</strong> icon in the reader toolbar to open the note editor. Notes are saved on your server and never leave.</p>
+          </div>
+          <div>
+            <p class="text-zinc-300 font-medium mb-1.5">Save for Later</p>
+            <p>Click the <strong class="text-zinc-300">bookmark+</strong> icon to save an article for later. Saved articles appear in the <strong class="text-zinc-300">Saved</strong> sidebar section, separate from Bookmarks.</p>
+          </div>
+          <div>
+            <p class="text-zinc-300 font-medium mb-1.5">Automation Rules</p>
+            <p>Rules are evaluated at fetch time. When a new article matches the condition, the action is applied automatically. Create rules in <strong class="text-zinc-300">Settings → Automation Rules</strong>.</p>
+            <div class="bg-zinc-900/60 border border-zinc-800 rounded-lg p-4 mt-2 space-y-2 text-xs">
+              <p class="font-medium text-zinc-300">Examples</p>
+              <div class="space-y-1.5 font-mono">
+                <div><code class="text-violet-300">title contains "AI"</code> → <span class="text-zinc-400">Save for later</span></div>
+                <div><code class="text-violet-300">author equals "John Doe"</code> → <span class="text-zinc-400">Bookmark</span></div>
+                <div><code class="text-violet-300">title matches "\\bsponsored\\b"</code> → <span class="text-zinc-400">Mute (discard)</span></div>
+              </div>
+            </div>
           </div>
         </div>
       </section>

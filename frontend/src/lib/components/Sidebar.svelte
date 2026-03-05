@@ -1,5 +1,5 @@
 <script>
-  import { Home, Bookmark, Search, Zap, Settings, Plus, Rss, RefreshCw, ChevronRight, BookOpen } from 'lucide-svelte';
+  import { Home, Bookmark, BookmarkCheck, Search, Zap, Settings, Plus, Rss, RefreshCw, ChevronRight, BookOpen } from 'lucide-svelte';
   import { app } from '$lib/stores/app.svelte.js';
   import { feeds as feedsApi } from '$lib/api.js';
 
@@ -25,11 +25,12 @@
   }
 
   const NAV = [
-    { id: 'bookmarks', label: 'Bookmarks', icon: Bookmark, path: '/bookmarks' },
-    { id: 'search',    label: 'Search',    icon: Search,   path: '/search' },
-    { id: 'digest',    label: 'Digest',    icon: Zap,      path: '/digest' },
-    { id: 'settings',  label: 'Settings',  icon: Settings, path: '/settings' },
-    { id: 'docs',      label: 'Docs',      icon: BookOpen, path: '/docs' },
+    { id: 'bookmarks', label: 'Bookmarks',  icon: Bookmark,     path: '/bookmarks' },
+    { id: 'saved',     label: 'Saved',      icon: BookmarkCheck,path: '/saved' },
+    { id: 'search',    label: 'Search',     icon: Search,       path: '/search' },
+    { id: 'digest',    label: 'Digest',     icon: Zap,          path: '/digest' },
+    { id: 'settings',  label: 'Settings',   icon: Settings,     path: '/settings' },
+    { id: 'docs',      label: 'Docs',       icon: BookOpen,     path: '/docs' },
   ];
 
   function unreadForTopic(topicId) {

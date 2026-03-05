@@ -67,6 +67,54 @@ class FeedResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+# --- Tag ---
+
+class TagCreate(BaseModel):
+    name: str
+    color: str = "#6366f1"
+
+
+class TagResponse(BaseModel):
+    id: int
+    name: str
+    color: str
+    created_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+
+class TagBrief(BaseModel):
+    id: int
+    name: str
+    color: str
+    model_config = ConfigDict(from_attributes=True)
+
+
+# --- Rule ---
+
+class RuleCreate(BaseModel):
+    name: str
+    condition: dict  # {field, op, value}
+    action: str
+    is_active: bool = True
+
+
+class RuleUpdate(BaseModel):
+    name: Optional[str] = None
+    condition: Optional[dict] = None
+    action: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+class RuleResponse(BaseModel):
+    id: int
+    name: str
+    condition: dict
+    action: str
+    is_active: bool
+    created_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+
 # --- Article ---
 
 class ArticleResponse(BaseModel):
@@ -85,6 +133,10 @@ class ArticleResponse(BaseModel):
     fetched_at: datetime
     is_read: bool
     is_bookmarked: bool
+    is_saved: bool = False
+    note: Optional[str] = None
+    summary: Optional[str] = None
+    tags: list[TagBrief] = []
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -102,6 +154,7 @@ class ArticleListItem(BaseModel):
     published_at: Optional[datetime]
     is_read: bool
     is_bookmarked: bool
+    is_saved: bool = False
     model_config = ConfigDict(from_attributes=True)
 
 

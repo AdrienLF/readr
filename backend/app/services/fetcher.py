@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from ..models import Feed, Article, MuteFilter
+from ..models import Feed, Article, MuteFilter, Rule, Tag
 from ..database import SessionLocal
 from .extractor import fetch_full_content, extract_from_html
 
@@ -131,6 +131,65 @@ def _is_muted(title: str, excerpt: str, filters: list) -> bool:
     return False
 
 
+def _matches_condition(article: Article, cond: dict) -> bool:
+    """Return True if an article matches a rule condition."""
+    field = cond.get("field", "title")
+    op = cond.get("op", "contains")
+    value = str(cond.get("value", ""))
+
+    raw = ""
+    if field == "title":
+        raw = article.title or ""
+    elif field == "author":
+        raw = article.author or ""
+    elif field == "feed_id":
+        raw = str(article.feed_id)
+    elif field == "excerpt":
+        raw = article.excerpt or ""
+
+    try:
+        if op == "contains":
+            return value.lower() in raw.lower()
+        elif op == "not_contains":
+            return value.lower() not in raw.lower()
+        elif op == "equals":
+            return raw.lower() == value.lower()
+        elif op == "matches":
+            return bool(re.search(value, raw, re.IGNORECASE))
+    except Exception:
+        pass
+    return False
+
+
+def _apply_rules_preview(article: Article, rules: list) -> tuple[bool, list[int], dict]:
+    """
+    Apply rules in-memory before persisting.
+    Returns (is_muted, tag_ids_to_add, field_updates).
+    """
+    tag_ids = []
+    updates = {}
+    for rule in rules:
+        if not rule.is_active:
+            continue
+        if not _matches_condition(article, rule.condition):
+            continue
+        action = rule.action
+        if action == "mark_read":
+            updates["is_read"] = True
+        elif action == "save":
+            updates["is_saved"] = True
+        elif action == "bookmark":
+            updates["is_bookmarked"] = True
+        elif action == "mute":
+            return True, [], {}
+        elif action.startswith("tag:"):
+            try:
+                tag_ids.append(int(action.split(":", 1)[1]))
+            except ValueError:
+                pass
+    return False, tag_ids, updates
+
+
 async def fetch_and_store_feed(feed_id: int):
     async with SessionLocal() as db:
         feed = await db.get(Feed, feed_id)
@@ -144,6 +203,10 @@ async def fetch_and_store_feed(feed_id: int):
             )
         )
         mute_filters = filters_result.scalars().all()
+
+        # Load active rules
+        rules_result = await db.execute(select(Rule).where(Rule.is_active == True))
+        rules = rules_result.scalars().all()
 
         logger.info(f"Fetching feed: {feed.title or feed.url}")
         try:
@@ -206,6 +269,7 @@ async def fetch_and_store_feed(feed_id: int):
                 if not image_url:
                     image_url = extracted_image
 
+            # Build article in-memory first so rules can inspect it
             article = Article(
                 feed_id=feed_id,
                 title=title,
@@ -217,7 +281,28 @@ async def fetch_and_store_feed(feed_id: int):
                 author=author,
                 published_at=published_at,
             )
+
+            # Apply rules before persisting
+            if rules:
+                is_muted, tag_ids, field_updates = _apply_rules_preview(article, rules)
+                if is_muted:
+                    logger.debug(f"  Rule-muted: {title}")
+                    continue
+                for k, v in field_updates.items():
+                    setattr(article, k, v)
+            else:
+                tag_ids = []
+
             db.add(article)
+
+            # Add tags (need flush to get article.id for relationship)
+            if tag_ids:
+                await db.flush()
+                for tag_id in tag_ids:
+                    tag = await db.get(Tag, tag_id)
+                    if tag:
+                        article.tags.append(tag)
+
             new_count += 1
 
         feed.last_fetched = datetime.utcnow()

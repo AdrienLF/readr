@@ -1,11 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, text
 from sqlalchemy.orm import selectinload
 
 from ..database import get_db
-from ..models import Article, Feed, Topic
-from ..schemas import ArticleResponse, ArticleListItem, PaginatedArticles
+from ..models import Article, Feed, Topic, Tag
+from ..schemas import ArticleResponse, ArticleListItem, PaginatedArticles, TagBrief
 from ..services.fetcher import fetch_reddit_comments
 
 router = APIRouter()
@@ -37,6 +38,7 @@ def _article_to_response(article: Article) -> ArticleResponse:
     return ArticleResponse(
         **{k: v for k, v in cols.items() if k in ArticleResponse.model_fields},
         **_feed_meta(article),
+        tags=[TagBrief(id=t.id, name=t.name, color=t.color) for t in (article.tags or [])],
     )
 
 
@@ -46,6 +48,7 @@ async def list_articles(
     feed_id: int | None = None,
     is_read: bool | None = None,
     is_bookmarked: bool | None = None,
+    is_saved: bool | None = None,
     page: int = Query(1, ge=1),
     page_size: int = Query(30, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
@@ -64,6 +67,8 @@ async def list_articles(
         stmt = stmt.where(Article.is_read == is_read)
     if is_bookmarked is not None:
         stmt = stmt.where(Article.is_bookmarked == is_bookmarked)
+    if is_saved is not None:
+        stmt = stmt.where(Article.is_saved == is_saved)
 
     count_stmt = select(func.count()).select_from(stmt.subquery())
     total = (await db.execute(count_stmt)).scalar() or 0
@@ -129,7 +134,9 @@ async def search_articles(
 @router.get("/{article_id}", response_model=ArticleResponse)
 async def get_article(article_id: int, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
-        select(Article).options(selectinload(Article.feed)).where(Article.id == article_id)
+        select(Article)
+        .options(selectinload(Article.feed), selectinload(Article.tags))
+        .where(Article.id == article_id)
     )
     article = result.scalar_one_or_none()
     if not article:
@@ -175,3 +182,78 @@ async def get_comments(article_id: int, db: AsyncSession = Depends(get_db)):
 
     comments = await fetch_reddit_comments(article.url)
     return {"comments": comments}
+
+
+class NoteUpdate(BaseModel):
+    note: str | None = None
+
+
+@router.patch("/{article_id}/note")
+async def update_note(article_id: int, body: NoteUpdate, db: AsyncSession = Depends(get_db)):
+    article = await db.get(Article, article_id)
+    if not article:
+        raise HTTPException(404, "Article not found")
+    article.note = body.note
+    await db.commit()
+    return {"id": article_id, "note": article.note}
+
+
+@router.patch("/{article_id}/saved")
+async def toggle_saved(article_id: int, db: AsyncSession = Depends(get_db)):
+    article = await db.get(Article, article_id)
+    if not article:
+        raise HTTPException(404, "Article not found")
+    article.is_saved = not article.is_saved
+    await db.commit()
+    return {"id": article_id, "is_saved": article.is_saved}
+
+
+@router.post("/{article_id}/summarize")
+async def summarize_article(article_id: int, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(
+        select(Article).options(selectinload(Article.feed)).where(Article.id == article_id)
+    )
+    article = result.scalar_one_or_none()
+    if not article:
+        raise HTTPException(404, "Article not found")
+
+    # Return cached summary if available
+    if article.summary:
+        return {"id": article_id, "summary": article.summary}
+
+    from ..services.llm import summarize_article as llm_summarize
+    summary = await llm_summarize(article)
+    if summary:
+        article.summary = summary
+        await db.commit()
+    return {"id": article_id, "summary": summary}
+
+
+@router.post("/{article_id}/tags/{tag_id}")
+async def add_tag(article_id: int, tag_id: int, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(
+        select(Article).options(selectinload(Article.tags)).where(Article.id == article_id)
+    )
+    article = result.scalar_one_or_none()
+    if not article:
+        raise HTTPException(404, "Article not found")
+    tag = await db.get(Tag, tag_id)
+    if not tag:
+        raise HTTPException(404, "Tag not found")
+    if tag not in article.tags:
+        article.tags.append(tag)
+        await db.commit()
+    return {"id": article_id, "tags": [{"id": t.id, "name": t.name, "color": t.color} for t in article.tags]}
+
+
+@router.delete("/{article_id}/tags/{tag_id}")
+async def remove_tag(article_id: int, tag_id: int, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(
+        select(Article).options(selectinload(Article.tags)).where(Article.id == article_id)
+    )
+    article = result.scalar_one_or_none()
+    if not article:
+        raise HTTPException(404, "Article not found")
+    article.tags = [t for t in article.tags if t.id != tag_id]
+    await db.commit()
+    return {"id": article_id, "tags": [{"id": t.id, "name": t.name, "color": t.color} for t in article.tags]}

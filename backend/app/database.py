@@ -63,6 +63,9 @@ async def init_db():
             "ALTER TABLE feeds ADD COLUMN error_count INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE feeds ADD COLUMN is_muted INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE articles ADD COLUMN audio_url TEXT",
+            "ALTER TABLE articles ADD COLUMN is_saved INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE articles ADD COLUMN note TEXT",
+            "ALTER TABLE articles ADD COLUMN summary TEXT",
         ]
         for sql in migrations:
             try:
