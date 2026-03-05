@@ -1,0 +1,12 @@
+# GPU override — run with:
+#   docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
+# Requires: NVIDIA Container Toolkit (Linux) or Docker Desktop with WSL2 GPU support (Windows)
+services:
+  ollama:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

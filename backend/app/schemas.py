@@ -1,0 +1,156 @@
+from datetime import datetime
+from typing import Optional
+from pydantic import BaseModel, ConfigDict
+
+
+# --- Topic ---
+
+class TopicBase(BaseModel):
+    name: str
+    color: str = "#6366f1"
+    icon: Optional[str] = None
+
+
+class TopicCreate(TopicBase):
+    pass
+
+
+class TopicUpdate(BaseModel):
+    name: Optional[str] = None
+    color: Optional[str] = None
+    icon: Optional[str] = None
+
+
+class TopicBrief(BaseModel):
+    id: int
+    name: str
+    color: str
+    model_config = ConfigDict(from_attributes=True)
+
+
+class TopicResponse(TopicBase):
+    id: int
+    created_at: datetime
+    feed_count: int = 0
+    model_config = ConfigDict(from_attributes=True)
+
+
+# --- Feed ---
+
+class FeedCreate(BaseModel):
+    url: str
+    topic_ids: list[int] = []
+
+
+class FeedUpdate(BaseModel):
+    title: Optional[str] = None
+    poll_interval: Optional[int] = None
+    topic_ids: Optional[list[int]] = None
+
+
+class FeedResponse(BaseModel):
+    id: int
+    url: str
+    title: Optional[str]
+    description: Optional[str]
+    source_type: str
+    favicon_url: Optional[str]
+    last_fetched: Optional[datetime]
+    poll_interval: int
+    created_at: datetime
+    unread_count: int = 0
+    topics: list[TopicBrief] = []
+    model_config = ConfigDict(from_attributes=True)
+
+
+# --- Article ---
+
+class ArticleResponse(BaseModel):
+    id: int
+    feed_id: int
+    feed_title: Optional[str]
+    feed_source_type: str
+    title: str
+    url: str
+    excerpt: Optional[str]
+    full_content: Optional[str]
+    image_url: Optional[str]
+    author: Optional[str]
+    published_at: Optional[datetime]
+    fetched_at: datetime
+    is_read: bool
+    is_bookmarked: bool
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ArticleListItem(BaseModel):
+    id: int
+    feed_id: int
+    feed_title: Optional[str]
+    feed_source_type: str
+    title: str
+    url: str
+    excerpt: Optional[str]
+    image_url: Optional[str]
+    author: Optional[str]
+    published_at: Optional[datetime]
+    is_read: bool
+    is_bookmarked: bool
+    model_config = ConfigDict(from_attributes=True)
+
+
+# --- Reddit Comment ---
+
+class RedditComment(BaseModel):
+    id: str
+    author: str
+    body: str
+    score: int
+    created_utc: float
+    depth: int
+    replies: list["RedditComment"] = []
+
+
+RedditComment.model_rebuild()
+
+
+# --- Digest ---
+
+class DigestResponse(BaseModel):
+    id: int
+    date: str
+    topic_id: Optional[int]
+    topic_name: Optional[str]
+    content: Optional[str]
+    model_used: Optional[str]
+    generated_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+
+class DigestGenerateRequest(BaseModel):
+    topic_id: Optional[int] = None
+    date: Optional[str] = None  # YYYY-MM-DD, defaults to today
+
+
+# --- Settings ---
+
+class SettingsUpdate(BaseModel):
+    digest_time: Optional[str] = None   # HH:MM
+    ollama_model: Optional[str] = None
+    fetch_interval: Optional[int] = None
+
+
+class SettingsResponse(BaseModel):
+    digest_time: str
+    ollama_model: str
+    fetch_interval: int
+
+
+# --- Pagination ---
+
+class PaginatedArticles(BaseModel):
+    items: list[ArticleListItem]
+    total: int
+    page: int
+    page_size: int
+    has_more: bool

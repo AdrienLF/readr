@@ -1,0 +1,66 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    @apply border-zinc-800;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-zinc-700 rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-zinc-600;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors;
+  }
+
+  .btn-primary {
+    @apply btn bg-violet-600 hover:bg-violet-500 text-white;
+  }
+
+  .btn-ghost {
+    @apply btn text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800;
+  }
+
+  .btn-danger {
+    @apply btn text-red-400 hover:text-red-300 hover:bg-red-950;
+  }
+
+  .input {
+    @apply w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-100
+           placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500
+           transition-colors;
+  }
+
+  .card {
+    @apply bg-zinc-900 border border-zinc-800 rounded-xl;
+  }
+}
+
+/* Article prose styles */
+.article-content {
+  @apply prose prose-invert prose-zinc max-w-none
+         prose-headings:text-zinc-100
+         prose-p:text-zinc-300 prose-p:leading-relaxed
+         prose-a:text-violet-400 prose-a:no-underline hover:prose-a:underline
+         prose-img:rounded-xl prose-img:w-full
+         prose-blockquote:border-violet-500 prose-blockquote:text-zinc-400
+         prose-code:text-violet-300 prose-code:bg-zinc-800 prose-code:rounded prose-code:px-1
+         prose-pre:bg-zinc-900 prose-pre:border prose-pre:border-zinc-800;
+}

@@ -1,0 +1,24 @@
+# Data & secrets
+data/
+*.db
+*.sqlite
+.env
+.env.*
+
+# Python
+backend/.venv/
+backend/__pycache__/
+**/__pycache__/
+**/*.pyc
+backend/.pytest_cache/
+backend/htmlcov/
+backend/.coverage
+
+# Node / SvelteKit
+frontend/node_modules/
+frontend/.svelte-kit/
+frontend/build/
+
+# OS
+.DS_Store
+Thumbs.db
