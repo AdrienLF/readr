@@ -276,7 +276,7 @@
       <!-- Grid / card layout -->
       <div class={gridClass}>
         {#each items as article, i (article.id)}
-          <div bind:this={cardEls[i]}>
+          <div bind:this={cardEls[i]} class="h-full">
             <ArticleCard
               {article}
               onUpdate={handleUpdate}

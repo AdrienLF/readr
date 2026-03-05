@@ -164,7 +164,7 @@
     onclick={open}
     onkeydown={(e) => e.key === 'Enter' && open()}
     class="group relative w-full text-left card hover:border-zinc-700 transition-all duration-200
-           cursor-pointer p-3 {article.is_read ? 'opacity-60' : ''}
+           cursor-pointer p-3 flex flex-col h-full {article.is_read ? 'opacity-60' : ''}
            {focused ? 'ring-2 ring-violet-500/50' : ''}"
   >
     {#if !article.is_read}
@@ -181,9 +181,11 @@
       {article.title}
     </h3>
     {#if article.excerpt}
-      <p class="text-xs text-zinc-500 line-clamp-1 leading-relaxed">{article.excerpt}</p>
+      <p class="text-xs text-zinc-500 line-clamp-2 leading-relaxed flex-1">{article.excerpt}</p>
+    {:else}
+      <div class="flex-1"></div>
     {/if}
-    <div class="flex items-center justify-between mt-2">
+    <div class="flex items-center justify-between mt-auto pt-2">
       <span class="text-xs text-zinc-600 truncate">{article.author || ''}</span>
       <button
         onclick={toggleBookmark}
@@ -209,11 +211,11 @@
     onclick={open}
     onkeydown={(e) => e.key === 'Enter' && open()}
     class="group relative w-full text-left card hover:border-zinc-700 transition-all duration-200
-           overflow-hidden cursor-pointer {article.is_read ? 'opacity-60' : ''}
+           overflow-hidden cursor-pointer flex flex-col h-full {article.is_read ? 'opacity-60' : ''}
            {focused ? 'ring-2 ring-violet-500/50' : ''}"
   >
     {#if article.image_url}
-      <div class="aspect-video w-full overflow-hidden bg-zinc-800">
+      <div class="aspect-video w-full overflow-hidden bg-zinc-800 shrink-0">
         <img
           src={article.image_url}
           alt=""
@@ -224,7 +226,7 @@
       </div>
     {/if}
 
-    <div class="p-4">
+    <div class="p-4 flex flex-col flex-1">
       <div class="flex items-center gap-2 mb-2">
         {#if article.feed_source_type === 'reddit'}
           <span class="text-orange-400 text-xs font-semibold uppercase tracking-wide">Reddit</span>
@@ -238,10 +240,12 @@
       </h3>
 
       {#if article.excerpt}
-        <p class="text-xs text-zinc-500 line-clamp-2 leading-relaxed">{article.excerpt}</p>
+        <p class="text-xs text-zinc-500 line-clamp-2 leading-relaxed flex-1">{article.excerpt}</p>
+      {:else}
+        <div class="flex-1"></div>
       {/if}
 
-      <div class="flex items-center justify-between mt-3">
+      <div class="flex items-center justify-between mt-auto pt-3">
         <span class="text-xs text-zinc-600">{article.author || ''}</span>
         <button
           onclick={toggleBookmark}

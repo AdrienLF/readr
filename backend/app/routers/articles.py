@@ -11,21 +11,32 @@ from ..services.fetcher import fetch_reddit_comments
 router = APIRouter()
 
 
+def _feed_meta(article: Article) -> dict:
+    """Computed fields that come from the related feed, not the article columns."""
+    return {
+        "feed_title": article.feed.title if article.feed else None,
+        "feed_source_type": article.feed.source_type if article.feed else "rss",
+    }
+
+
+def _cols(article: Article) -> dict:
+    """All ORM column values keyed by column name — picks up new columns automatically."""
+    return {c.name: getattr(article, c.name) for c in Article.__table__.columns}
+
+
 def _article_to_list_item(article: Article) -> ArticleListItem:
+    cols = _cols(article)
     return ArticleListItem(
-        id=article.id,
-        feed_id=article.feed_id,
-        feed_title=article.feed.title if article.feed else None,
-        feed_source_type=article.feed.source_type if article.feed else "rss",
-        title=article.title,
-        url=article.url,
-        excerpt=article.excerpt,
-        image_url=article.image_url,
-        audio_url=article.audio_url,
-        author=article.author,
-        published_at=article.published_at,
-        is_read=article.is_read,
-        is_bookmarked=article.is_bookmarked,
+        **{k: v for k, v in cols.items() if k in ArticleListItem.model_fields},
+        **_feed_meta(article),
+    )
+
+
+def _article_to_response(article: Article) -> ArticleResponse:
+    cols = _cols(article)
+    return ArticleResponse(
+        **{k: v for k, v in cols.items() if k in ArticleResponse.model_fields},
+        **_feed_meta(article),
     )
 
 
@@ -124,22 +135,7 @@ async def get_article(article_id: int, db: AsyncSession = Depends(get_db)):
     if not article:
         raise HTTPException(404, "Article not found")
 
-    return ArticleResponse(
-        id=article.id,
-        feed_id=article.feed_id,
-        feed_title=article.feed.title if article.feed else None,
-        feed_source_type=article.feed.source_type if article.feed else "rss",
-        title=article.title,
-        url=article.url,
-        excerpt=article.excerpt,
-        full_content=article.full_content,
-        image_url=article.image_url,
-        author=article.author,
-        published_at=article.published_at,
-        fetched_at=article.fetched_at,
-        is_read=article.is_read,
-        is_bookmarked=article.is_bookmarked,
-    )
+    return _article_to_response(article)
 
 
 @router.patch("/{article_id}/read")
