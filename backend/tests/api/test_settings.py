@@ -1,6 +1,7 @@
 """API tests for /api/settings."""
 import pytest
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, patch, MagicMock
+import httpx
 
 
 async def test_get_settings_defaults(client):
@@ -68,3 +69,49 @@ async def test_settings_persist_across_requests(client):
 
     res = await client.get("/api/settings")
     assert res.json()["ollama_model"] == "mistral:7b"
+
+
+# ── Ollama model listing ───────────────────────────────────────────────────
+
+async def test_ollama_models_returns_list(client):
+    """Returns parsed model names from Ollama /api/tags."""
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {
+        "models": [
+            {"name": "qwen3:8b"},
+            {"name": "llama3:8b"},
+        ]
+    }
+    mock_resp.raise_for_status = MagicMock()
+
+    with patch("app.routers.settings.httpx.AsyncClient") as MockClient:
+        MockClient.return_value.__aenter__ = AsyncMock(return_value=MockClient.return_value)
+        MockClient.return_value.__aexit__ = AsyncMock(return_value=False)
+        MockClient.return_value.get = AsyncMock(return_value=mock_resp)
+
+        res = await client.get("/api/settings/ollama-models")
+
+    assert res.status_code == 200
+    data = res.json()
+    assert data["status"] == "ok"
+    assert "qwen3:8b" in data["models"]
+    assert "llama3:8b" in data["models"]
+
+
+async def test_ollama_models_unreachable(client):
+    """When Ollama is down, returns unreachable status with empty model list."""
+    with patch("app.routers.settings.httpx.AsyncClient") as MockClient:
+        MockClient.return_value.__aenter__ = AsyncMock(return_value=MockClient.return_value)
+        MockClient.return_value.__aexit__ = AsyncMock(return_value=False)
+        MockClient.return_value.get = AsyncMock(
+            side_effect=httpx.ConnectError("Connection refused")
+        )
+
+        res = await client.get("/api/settings/ollama-models")
+
+    assert res.status_code == 200
+    data = res.json()
+    assert data["status"] == "unreachable"
+    assert data["models"] == []
+    assert "error" in data

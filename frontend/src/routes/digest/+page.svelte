@@ -1,6 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { format } from 'date-fns';
+  import { marked } from 'marked';
   import { Zap, RefreshCw, ChevronDown, AlertCircle } from 'lucide-svelte';
   import { app } from '$lib/stores/app.svelte.js';
   import { digests as digestsApi } from '$lib/api.js';
@@ -136,9 +137,10 @@
             {#if openId === digest.id}
               <div class="px-5 pb-5 border-t border-zinc-800">
                 <div class="mt-4 prose prose-invert prose-sm max-w-none
-                            prose-p:text-zinc-300 prose-headings:text-zinc-200
-                            prose-strong:text-zinc-200 prose-li:text-zinc-300">
-                  {@html digest.content?.replace(/\n/g, '<br>') || ''}
+                            prose-p:text-zinc-300 prose-headings:text-zinc-200 prose-headings:font-semibold
+                            prose-strong:text-zinc-200 prose-li:text-zinc-300
+                            prose-ul:my-2 prose-ol:my-2 prose-li:my-0.5">
+                  {@html marked(digest.content || '')}
                 </div>
               </div>
             {/if}

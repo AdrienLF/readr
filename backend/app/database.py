@@ -1,7 +1,15 @@
+import logging
+import xml.etree.ElementTree as ET
+from pathlib import Path
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.orm import DeclarativeBase
-from sqlalchemy import text
+from sqlalchemy import text, select
 from .config import settings
+
+logger = logging.getLogger(__name__)
+
+# seeds/feeds.opml lives two levels above this file: backend/app/ → backend/ → repo root
+_SEEDS_OPML = Path(__file__).parent.parent.parent / "seeds" / "feeds.opml"
 
 
 engine = create_async_engine(settings.database_url, echo=False)
@@ -72,3 +80,45 @@ async def init_db():
                 await conn.execute(text(sql))
             except Exception:
                 pass  # Column already exists
+
+
+
+async def _seed_feeds_if_empty():
+    """Insert feeds from seeds/feeds.opml on first run (when feeds table is empty)."""
+    if not _SEEDS_OPML.exists():
+        return
+
+    from .models import Feed  # local import to avoid circular deps at module load
+
+    async with SessionLocal() as db:
+        count = (await db.execute(text("SELECT COUNT(*) FROM feeds"))).scalar()
+        if count and count > 0:
+            return
+
+        try:
+            root = ET.parse(_SEEDS_OPML).getroot()
+        except ET.ParseError as e:
+            logger.warning(f"Failed to parse seeds/feeds.opml: {e}")
+            return
+
+        body = root.find("body")
+        if body is None:
+            return
+
+        def _source_type(xml_url: str) -> str:
+            if "reddit.com" in xml_url:
+                return "reddit"
+            return "rss"
+
+        inserted = 0
+        for outline in body.iter("outline"):
+            xml_url = outline.get("xmlUrl")
+            if not xml_url:
+                continue
+            title = outline.get("title") or outline.get("text") or xml_url
+            feed = Feed(url=xml_url, title=title, source_type=_source_type(xml_url))
+            db.add(feed)
+            inserted += 1
+
+        await db.commit()
+        logger.info(f"Seeded {inserted} feed(s) from seeds/feeds.opml")

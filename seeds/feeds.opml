@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<opml version="2.0">
+  <head>
+    <title>Readr Feeds</title>
+  </head>
+  <body>
+    <outline type="rss" text="Ars Technica - All content" title="Ars Technica - All content" xmlUrl="https://feeds.arstechnica.com/arstechnica/index" htmlUrl="https://feeds.arstechnica.com/arstechnica/index"/>
+    <outline type="rss" text="Hacker News: Front Page" title="Hacker News: Front Page" xmlUrl="https://hnrss.org/frontpage" htmlUrl="https://hnrss.org/frontpage"/>
+    <outline type="rss" text="r/synthesizers" title="r/synthesizers" xmlUrl="https://www.reddit.com/r/synthesizers.rss" htmlUrl="https://www.reddit.com/r/synthesizers"/>
+    <outline type="rss" text="r/InstagramMarketing" title="r/InstagramMarketing" xmlUrl="https://www.reddit.com/r/InstagramMarketing.rss" htmlUrl="https://www.reddit.com/r/InstagramMarketing"/>
+    <outline type="rss" text="r/Python" title="r/Python" xmlUrl="https://www.reddit.com/r/python.rss" htmlUrl="https://www.reddit.com/r/python"/>
+  </body>
+</opml>

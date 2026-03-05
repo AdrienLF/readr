@@ -23,11 +23,16 @@ async def client(tmp_path):
     test_engine = create_async_engine(db_url, echo=False)
     test_session = async_sessionmaker(test_engine, expire_on_commit=False)
 
-    # Patch global engine + session BEFORE the app lifespan fires
+    # Patch global engine + session BEFORE init_db runs
     original_engine = db_module.engine
     original_session = db_module.SessionLocal
     db_module.engine = test_engine
     db_module.SessionLocal = test_session
+
+    # Explicitly initialise the test DB — httpx's ASGITransport does not
+    # trigger ASGI lifespan events, so we cannot rely on the FastAPI lifespan
+    # to call init_db() for us.
+    await db_module.init_db()
 
     with (
         patch("app.services.scheduler.start_scheduler", new_callable=AsyncMock),

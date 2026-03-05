@@ -1,6 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { format } from 'date-fns';
+  import { marked } from 'marked';
   import { X, ExternalLink, Bookmark, BookmarkCheck, BookmarkPlus, MessageSquare, Zap, Tag, StickyNote } from 'lucide-svelte';
   import { app } from '$lib/stores/app.svelte.js';
   import { articles as articlesApi, tags as tagsApi } from '$lib/api.js';
@@ -321,7 +322,13 @@
               <Zap size={13} class="text-violet-400" />
               <span class="text-xs font-semibold text-violet-400 uppercase tracking-wider">AI Summary</span>
             </div>
-            <p class="text-sm text-zinc-300 leading-relaxed">{article.summary}</p>
+            <div class="prose prose-invert prose-sm max-w-none
+                        prose-p:text-zinc-300 prose-p:leading-relaxed prose-p:my-1
+                        prose-headings:text-zinc-200 prose-headings:font-semibold
+                        prose-strong:text-zinc-200 prose-li:text-zinc-300
+                        prose-ul:my-1 prose-ol:my-1">
+              {@html marked(article.summary)}
+            </div>
           </div>
         {:else if summarizing}
           <div class="mb-6 p-4 rounded-lg bg-violet-950/20 border border-violet-800/30 animate-pulse">

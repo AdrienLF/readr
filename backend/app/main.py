@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .database import init_db
+from .database import init_db, _seed_feeds_if_empty
 from .services.scheduler import start_scheduler, stop_scheduler
 from .routers import feeds, articles, topics, digests, settings, filters, tags, rules
 
@@ -10,6 +10,7 @@ from .routers import feeds, articles, topics, digests, settings, filters, tags, 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
+    await _seed_feeds_if_empty()
     await start_scheduler()
     yield
     await stop_scheduler()

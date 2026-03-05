@@ -8,6 +8,7 @@ from ..database import get_db
 from ..models import Article, Feed, Topic, Tag
 from ..schemas import ArticleResponse, ArticleListItem, PaginatedArticles, TagBrief
 from ..services.fetcher import fetch_reddit_comments
+from ..services.llm import summarize_article as llm_summarize
 
 router = APIRouter()
 
@@ -221,7 +222,6 @@ async def summarize_article(article_id: int, db: AsyncSession = Depends(get_db))
     if article.summary:
         return {"id": article_id, "summary": article.summary}
 
-    from ..services.llm import summarize_article as llm_summarize
     summary = await llm_summarize(article)
     if summary:
         article.summary = summary

@@ -7,8 +7,12 @@ from app.services.fetcher import (
     _get_rss_content,
     _get_rss_image,
     _get_rss_excerpt,
+    _get_audio_url,
     _parse_comment_tree,
     _parse_date,
+    _is_muted,
+    _matches_condition,
+    _apply_rules_preview,
 )
 
 
@@ -64,7 +68,9 @@ def test_extract_favicon_invalid_url():
 # --- _get_rss_content ---
 
 class MockEntry:
-    pass
+    """Minimal feedparser-style entry: supports both attribute and dict-style access."""
+    def get(self, key, default=None):
+        return getattr(self, key, default)
 
 
 def test_get_rss_content_from_content_list():
@@ -227,3 +233,160 @@ def test_parse_date_none():
         published_parsed = None
         updated_parsed = None
     assert _parse_date(E()) is None
+
+
+# --- _get_audio_url ---
+
+def test_get_audio_url_found():
+    entry = MockEntry()
+    entry.enclosures = [{"type": "audio/mpeg", "href": "https://example.com/ep1.mp3"}]
+    assert _get_audio_url(entry) == "https://example.com/ep1.mp3"
+
+
+def test_get_audio_url_uses_url_key():
+    entry = MockEntry()
+    entry.enclosures = [{"type": "audio/ogg", "url": "https://example.com/ep2.ogg"}]
+    assert _get_audio_url(entry) == "https://example.com/ep2.ogg"
+
+
+def test_get_audio_url_ignores_non_audio():
+    entry = MockEntry()
+    entry.enclosures = [{"type": "image/jpeg", "href": "https://example.com/img.jpg"}]
+    assert _get_audio_url(entry) is None
+
+
+def test_get_audio_url_empty():
+    entry = MockEntry()
+    entry.enclosures = []
+    assert _get_audio_url(entry) is None
+
+
+# --- _is_muted ---
+
+class _MockFilter:
+    def __init__(self, pattern, is_regex=False):
+        self.pattern = pattern
+        self.is_regex = is_regex
+
+
+def test_is_muted_keyword_match():
+    filters = [_MockFilter("sponsored")]
+    assert _is_muted("This is a Sponsored post", "", filters) is True
+
+
+def test_is_muted_keyword_no_match():
+    filters = [_MockFilter("sponsored")]
+    assert _is_muted("Normal article title", "", filters) is False
+
+
+def test_is_muted_regex_match():
+    filters = [_MockFilter(r"^Breaking", is_regex=True)]
+    assert _is_muted("Breaking: Something happened", "", filters) is True
+
+
+def test_is_muted_regex_no_match():
+    filters = [_MockFilter(r"^Breaking", is_regex=True)]
+    assert _is_muted("Not breaking news", "", filters) is False
+
+
+def test_is_muted_checks_excerpt():
+    filters = [_MockFilter("advertisement")]
+    assert _is_muted("Clean title", "This is an advertisement in the body", filters) is True
+
+
+def test_is_muted_invalid_regex_does_not_crash():
+    filters = [_MockFilter(r"[invalid(regex", is_regex=True)]
+    assert _is_muted("Some title", "", filters) is False
+
+
+# --- _matches_condition ---
+
+class _FakeArticle:
+    def __init__(self, title="", author="", excerpt="", feed_id=1):
+        self.title = title
+        self.author = author
+        self.excerpt = excerpt
+        self.feed_id = feed_id
+
+
+def test_matches_condition_contains():
+    article = _FakeArticle(title="AI is changing everything")
+    assert _matches_condition(article, {"field": "title", "op": "contains", "value": "AI"}) is True
+    assert _matches_condition(article, {"field": "title", "op": "contains", "value": "blockchain"}) is False
+
+
+def test_matches_condition_not_contains():
+    article = _FakeArticle(title="Python programming")
+    assert _matches_condition(article, {"field": "title", "op": "not_contains", "value": "Java"}) is True
+    assert _matches_condition(article, {"field": "title", "op": "not_contains", "value": "Python"}) is False
+
+
+def test_matches_condition_equals():
+    article = _FakeArticle(author="John Doe")
+    assert _matches_condition(article, {"field": "author", "op": "equals", "value": "john doe"}) is True
+    assert _matches_condition(article, {"field": "author", "op": "equals", "value": "Jane"}) is False
+
+
+def test_matches_condition_regex():
+    article = _FakeArticle(title="SPONSORED: Buy this now")
+    assert _matches_condition(article, {"field": "title", "op": "matches", "value": r"\bsponsored\b"}) is True
+
+
+def test_matches_condition_feed_id():
+    article = _FakeArticle(feed_id=42)
+    assert _matches_condition(article, {"field": "feed_id", "op": "equals", "value": "42"}) is True
+
+
+# --- _apply_rules_preview ---
+
+class _MockRule:
+    def __init__(self, condition, action, is_active=True):
+        self.condition = condition
+        self.action = action
+        self.is_active = is_active
+
+
+def test_apply_rules_preview_mark_read():
+    article = _FakeArticle(title="AI breakthrough")
+    rules = [_MockRule({"field": "title", "op": "contains", "value": "AI"}, "mark_read")]
+    is_muted, tag_ids, updates = _apply_rules_preview(article, rules)
+    assert is_muted is False
+    assert updates.get("is_read") is True
+
+
+def test_apply_rules_preview_save():
+    article = _FakeArticle(title="Must read later")
+    rules = [_MockRule({"field": "title", "op": "contains", "value": "Must read"}, "save")]
+    _, _, updates = _apply_rules_preview(article, rules)
+    assert updates.get("is_saved") is True
+
+
+def test_apply_rules_preview_mute():
+    article = _FakeArticle(title="Sponsored content")
+    rules = [_MockRule({"field": "title", "op": "contains", "value": "Sponsored"}, "mute")]
+    is_muted, _, _ = _apply_rules_preview(article, rules)
+    assert is_muted is True
+
+
+def test_apply_rules_preview_tag():
+    article = _FakeArticle(title="Python tutorial")
+    rules = [_MockRule({"field": "title", "op": "contains", "value": "Python"}, "tag:7")]
+    is_muted, tag_ids, updates = _apply_rules_preview(article, rules)
+    assert is_muted is False
+    assert 7 in tag_ids
+
+
+def test_apply_rules_preview_inactive_skipped():
+    article = _FakeArticle(title="AI news")
+    rules = [_MockRule({"field": "title", "op": "contains", "value": "AI"}, "mark_read", is_active=False)]
+    _, _, updates = _apply_rules_preview(article, rules)
+    assert "is_read" not in updates
+
+
+def test_apply_rules_preview_no_match():
+    article = _FakeArticle(title="Boring article")
+    rules = [_MockRule({"field": "title", "op": "contains", "value": "AI"}, "mark_read")]
+    is_muted, tag_ids, updates = _apply_rules_preview(article, rules)
+    assert is_muted is False
+    assert updates == {}
+    assert tag_ids == []

@@ -16,14 +16,14 @@ async def test_list_digests_by_date(client):
     assert res.json() == []
 
 
-async def test_trigger_digest_generation(client):
+async def test_trigger_digest_generation_synchronous(client):
+    """generate endpoint now returns the generated digests synchronously."""
     with patch("app.routers.digests.generate_all_digests", new_callable=AsyncMock):
         res = await client.post("/api/digests/generate", json={})
 
-    assert res.status_code == 202
-    data = res.json()
-    assert data["message"] == "Digest generation started"
-    assert "date" in data
+    assert res.status_code == 200
+    # No digests were actually created (mock), so returns empty list
+    assert isinstance(res.json(), list)
 
 
 async def test_trigger_digest_with_topic(client):
@@ -33,18 +33,32 @@ async def test_trigger_digest_with_topic(client):
     with patch("app.routers.digests.generate_all_digests", new_callable=AsyncMock) as mock_gen:
         res = await client.post("/api/digests/generate", json={"topic_id": topic_id})
 
-    assert res.status_code == 202
+    assert res.status_code == 200
     mock_gen.assert_called_once()
-    args = mock_gen.call_args
-    assert args[0][1] == topic_id  # second positional arg = topic_id
+    call_args = mock_gen.call_args
+    assert call_args[0][1] == topic_id  # second positional arg = topic_id
 
 
 async def test_trigger_digest_with_custom_date(client):
     with patch("app.routers.digests.generate_all_digests", new_callable=AsyncMock):
         res = await client.post("/api/digests/generate", json={"date": "2024-01-15"})
 
-    assert res.status_code == 202
-    assert res.json()["date"] == "2024-01-15"
+    assert res.status_code == 200
+    # Should return digests for that date (empty since mock didn't create any)
+    assert isinstance(res.json(), list)
+
+
+async def test_trigger_digest_generation_error_surfaces(client):
+    """If Ollama fails, the endpoint returns 500 with the error message."""
+    with patch(
+        "app.routers.digests.generate_all_digests",
+        new_callable=AsyncMock,
+        side_effect=Exception("Connection refused"),
+    ):
+        res = await client.post("/api/digests/generate", json={})
+
+    assert res.status_code == 500
+    assert "Connection refused" in res.json()["detail"]
 
 
 async def test_list_digests_after_generation(client):
@@ -69,11 +83,10 @@ async def test_list_digests_after_generation(client):
     assert data[0]["date"] == "2024-01-15"
     assert data[0]["content"] == "1. Overview\n2. Stories"
     assert data[0]["model_used"] == "qwen3:8b"
-    assert data[0]["topic_name"] == "All Topics"  # topic_id=None
+    assert data[0]["topic_name"] == "All Topics"
 
 
 async def test_digest_includes_topic_name(client):
-    """Digest with a topic_id shows the topic's name."""
     topic_res = await client.post("/api/topics", json={"name": "Finance", "color": "#f59e0b"})
     topic_id = topic_res.json()["id"]
 
@@ -84,7 +97,7 @@ async def test_digest_includes_topic_name(client):
         digest = Digest(
             date="2024-01-15",
             topic_id=topic_id,
-            content="Finance digest content",
+            content="Finance digest",
             model_used="qwen3:8b",
         )
         db.add(digest)
@@ -92,6 +105,33 @@ async def test_digest_includes_topic_name(client):
 
     res = await client.get("/api/digests?target_date=2024-01-15")
     data = res.json()
-    finance_digest = next((d for d in data if d["topic_id"] == topic_id), None)
-    assert finance_digest is not None
-    assert finance_digest["topic_name"] == "Finance"
+    finance = next((d for d in data if d["topic_id"] == topic_id), None)
+    assert finance is not None
+    assert finance["topic_name"] == "Finance"
+
+
+async def test_generate_returns_newly_created_digests(client):
+    """After generation, the endpoint returns the digests it just created."""
+    from app.database import SessionLocal
+    from app.models import Digest
+
+    target_date = "2024-06-01"
+
+    async def fake_generate(date, topic_id):
+        async with SessionLocal() as db:
+            db.add(Digest(
+                date=date,
+                topic_id=None,
+                content="Generated content",
+                model_used="qwen3:8b",
+            ))
+            await db.commit()
+
+    with patch("app.routers.digests.generate_all_digests", side_effect=fake_generate):
+        res = await client.post("/api/digests/generate", json={"date": target_date})
+
+    assert res.status_code == 200
+    data = res.json()
+    assert len(data) == 1
+    assert data[0]["content"] == "Generated content"
+    assert data[0]["date"] == target_date

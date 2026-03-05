@@ -202,3 +202,140 @@ async def test_list_articles_has_more_flag(client, mocker):
     data = res.json()
     assert data["has_more"] is True
     assert len(data["items"]) == 3
+
+
+# ── Tier 2: saved, note, summarize, tags ──────────────────────────────────
+
+async def test_toggle_saved(client, mocker):
+    ids = await _seed_article(client, mocker)
+
+    res = await client.patch(f"/api/articles/{ids['article_id']}/saved")
+    assert res.status_code == 200
+    assert res.json()["is_saved"] is True
+
+    res2 = await client.patch(f"/api/articles/{ids['article_id']}/saved")
+    assert res2.json()["is_saved"] is False
+
+
+async def test_list_articles_filter_saved(client, mocker):
+    ids = await _seed_article(client, mocker, url="https://ex.com/s1")
+    await _seed_article(client, mocker, url="https://ex.com/s2", feed_url="https://ex.com/f2.rss")
+
+    await client.patch(f"/api/articles/{ids['article_id']}/saved")
+
+    res = await client.get("/api/articles?is_saved=true")
+    assert res.json()["total"] == 1
+
+
+async def test_update_note(client, mocker):
+    ids = await _seed_article(client, mocker)
+
+    res = await client.patch(
+        f"/api/articles/{ids['article_id']}/note",
+        json={"note": "This is my note"},
+    )
+    assert res.status_code == 200
+    assert res.json()["note"] == "This is my note"
+
+    # Verify persisted
+    article = (await client.get(f"/api/articles/{ids['article_id']}")).json()
+    assert article["note"] == "This is my note"
+
+
+async def test_clear_note(client, mocker):
+    ids = await _seed_article(client, mocker)
+    await client.patch(f"/api/articles/{ids['article_id']}/note", json={"note": "Draft"})
+
+    res = await client.patch(f"/api/articles/{ids['article_id']}/note", json={"note": None})
+    assert res.status_code == 200
+    assert res.json()["note"] is None
+
+
+async def test_summarize_article_cached(client, mocker):
+    """If summary already exists, return it without calling Ollama."""
+    from app.database import SessionLocal
+    from app.models import Feed, Article
+
+    async with SessionLocal() as db:
+        feed = Feed(url="https://ex.com/rss", title="F", source_type="rss")
+        db.add(feed)
+        await db.flush()
+        article = Article(
+            feed_id=feed.id, title="Cached summary article",
+            url="https://ex.com/cached",
+            full_content="<p>Content</p>",
+            summary="Existing cached summary",
+        )
+        db.add(article)
+        await db.commit()
+        article_id = article.id
+
+    from unittest.mock import AsyncMock, patch
+    with patch("app.routers.articles.llm_summarize", new_callable=AsyncMock) as mock_llm:
+        res = await client.post(f"/api/articles/{article_id}/summarize")
+
+    assert res.status_code == 200
+    assert res.json()["summary"] == "Existing cached summary"
+    mock_llm.assert_not_called()
+
+
+async def test_summarize_article_calls_llm(client, mocker):
+    """Fresh summarize request calls Ollama and caches the result."""
+    ids = await _seed_article(client, mocker)
+
+    from unittest.mock import AsyncMock, patch
+    with patch(
+        "app.routers.articles.llm_summarize",
+        new_callable=AsyncMock,
+        return_value="Fresh AI summary",
+    ):
+        res = await client.post(f"/api/articles/{ids['article_id']}/summarize")
+
+    assert res.status_code == 200
+    assert res.json()["summary"] == "Fresh AI summary"
+
+    # Verify cached in DB
+    article = (await client.get(f"/api/articles/{ids['article_id']}")).json()
+    assert article["summary"] == "Fresh AI summary"
+
+
+async def test_add_and_remove_tag(client, mocker):
+    ids = await _seed_article(client, mocker)
+
+    # Create a tag
+    tag_res = await client.post("/api/tags", json={"name": "Important", "color": "#ef4444"})
+    assert tag_res.status_code == 201
+    tag_id = tag_res.json()["id"]
+
+    # Add tag to article
+    res = await client.post(f"/api/articles/{ids['article_id']}/tags/{tag_id}")
+    assert res.status_code == 200
+    tags = res.json()["tags"]
+    assert any(t["id"] == tag_id for t in tags)
+
+    # Verify in full article response
+    article = (await client.get(f"/api/articles/{ids['article_id']}")).json()
+    assert any(t["id"] == tag_id for t in article["tags"])
+
+    # Remove tag
+    res2 = await client.delete(f"/api/articles/{ids['article_id']}/tags/{tag_id}")
+    assert res2.status_code == 200
+    assert res2.json()["tags"] == []
+
+
+async def test_add_tag_idempotent(client, mocker):
+    """Adding the same tag twice should not duplicate it."""
+    ids = await _seed_article(client, mocker)
+    tag_res = await client.post("/api/tags", json={"name": "Dup", "color": "#6366f1"})
+    tag_id = tag_res.json()["id"]
+
+    await client.post(f"/api/articles/{ids['article_id']}/tags/{tag_id}")
+    res = await client.post(f"/api/articles/{ids['article_id']}/tags/{tag_id}")
+    assert res.status_code == 200
+    assert len(res.json()["tags"]) == 1
+
+
+async def test_add_tag_not_found(client, mocker):
+    ids = await _seed_article(client, mocker)
+    res = await client.post(f"/api/articles/{ids['article_id']}/tags/9999")
+    assert res.status_code == 404
