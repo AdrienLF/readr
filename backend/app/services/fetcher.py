@@ -216,7 +216,7 @@ async def fetch_and_store_feed(feed_id: int):
         except Exception as e:
             feed.last_error = str(e)[:500]
             feed.error_count = (feed.error_count or 0) + 1
-            feed.last_fetched = datetime.utcnow()
+            feed.last_fetched = datetime.now(timezone.utc)
             await db.commit()
             logger.error(f"Error fetching {feed.url}: {e}")
             return
@@ -305,7 +305,7 @@ async def fetch_and_store_feed(feed_id: int):
 
             new_count += 1
 
-        feed.last_fetched = datetime.utcnow()
+        feed.last_fetched = datetime.now(timezone.utc)
         feed.last_error = None
         feed.error_count = 0
         await db.commit()

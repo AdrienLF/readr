@@ -1,5 +1,5 @@
 import logging
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from ollama import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
@@ -24,7 +24,7 @@ async def generate_digest_for_topic(
     db,
 ) -> str | None:
     # Fetch articles from the last 24h for this topic
-    since = datetime.utcnow() - timedelta(hours=24)
+    since = datetime.now(timezone.utc) - timedelta(hours=24)
 
     if topic_id is None:
         # Global digest — all articles

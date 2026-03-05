@@ -1,0 +1,136 @@
+# Readr
+
+A self-hosted, single-user RSS reader with full-text article fetching, Reddit comment threads, and a daily AI digest — no cloud, no tracking, no algorithmic interference.
+
+![Stack](https://img.shields.io/badge/backend-FastAPI-009688?style=flat-square) ![Stack](https://img.shields.io/badge/frontend-SvelteKit-FF3E00?style=flat-square) ![Stack](https://img.shields.io/badge/db-SQLite-003B57?style=flat-square) ![Stack](https://img.shields.io/badge/deploy-Docker_Compose-2496ED?style=flat-square)
+
+## Features
+
+- **Full-text reading** — fetches and stores complete article content server-side via trafilatura
+- **Topic organization** — organize feeds into topics (many-to-many); filter your reading by topic
+- **Reddit first-class** — Reddit posts include live threaded comment trees
+- **Daily AI digest** — local LLM (Ollama + Qwen3:8b) summarizes the day's stories per topic at a configurable time
+- **Read tracking & bookmarks** — per-article state, persisted in SQLite
+- **Full-text search** — SQLite FTS5, BM25 ranking, no external service needed
+- **Mobile-friendly** — responsive UI, accessible over Tailscale from any device
+- **Self-contained** — runs entirely in Docker Compose; all data stays local
+
+## Stack
+
+| Layer | Technology |
+|---|---|
+| Backend | Python 3.12, FastAPI, SQLAlchemy 2 (async), aiosqlite |
+| Frontend | SvelteKit 2, Svelte 5 (runes), TailwindCSS 3 |
+| Database | SQLite with FTS5 full-text search |
+| LLM | Ollama (local inference, GPU or CPU) |
+| Feed conversion | RSSHub (Bluesky, YouTube, and 400+ other sources) |
+| Deployment | Docker Compose + nginx reverse proxy |
+
+## Quick Start
+
+```bash
+git clone https://github.com/AdrienLF/readr
+cd readr
+
+# Pull the Ollama model (first run only)
+docker compose up -d ollama
+docker exec -it readr-ollama-1 ollama pull qwen3:8b
+
+# Start everything (auto-detects GPU)
+bash start.sh
+```
+
+Open `http://localhost` in your browser.
+
+### GPU support
+
+The `start.sh` script auto-detects `nvidia-smi` and enables GPU passthrough if available (requires NVIDIA Container Toolkit or Docker Desktop with WSL2 GPU support). To force CPU mode:
+
+```bash
+docker compose up -d
+```
+
+## Adding Feeds
+
+| Source | URL format |
+|---|---|
+| Any RSS/Atom feed | Direct feed URL |
+| Reddit subreddit | `https://www.reddit.com/r/{subreddit}.rss` |
+| Bluesky user | `http://rsshub:1200/bsky/user/{handle}` |
+| YouTube channel | `http://rsshub:1200/youtube/user/{username}` |
+| GitHub releases | `https://github.com/{user}/{repo}/releases.atom` |
+
+RSSHub supports hundreds of additional sources — see [docs.rsshub.app](https://docs.rsshub.app).
+
+## Configuration
+
+Settings are available through the UI (`/settings`) or via environment variables:
+
+| Setting | Default | Description |
+|---|---|---|
+| `digest_time` | `07:00` | Daily digest generation time (HH:MM) |
+| `ollama_model` | `qwen3:8b` | Ollama model used for digests |
+| `fetch_interval` | `3600` | Feed poll interval in seconds |
+
+Environment variables:
+
+| Variable | Default |
+|---|---|
+| `OLLAMA_BASE_URL` | `http://ollama:11434` |
+| `RSSHUB_BASE_URL` | `http://rsshub:1200` |
+| `DATABASE_URL` | `sqlite+aiosqlite:////app/data/rss_reader.db` |
+
+## Development
+
+### Backend
+
+```bash
+cd backend
+uv sync
+uv run uvicorn app.main:app --reload  # dev server on :8000
+uv run pytest                          # run all tests
+```
+
+### Frontend
+
+```bash
+cd frontend
+npm install
+npm run dev    # dev server on :5173
+npm test       # unit tests (vitest)
+```
+
+### Architecture
+
+```
+readr/
+├── backend/
+│   └── app/
+│       ├── main.py          FastAPI app + lifespan
+│       ├── models.py        SQLAlchemy ORM models
+│       ├── schemas.py       Pydantic schemas
+│       ├── routers/         REST API endpoints
+│       └── services/
+│           ├── fetcher.py   Feed polling + Reddit normalization
+│           ├── extractor.py Full-text extraction (trafilatura)
+│           ├── scheduler.py APScheduler (poll + digest cron)
+│           └── llm.py       Ollama digest generation
+└── frontend/
+    └── src/
+        ├── routes/          SvelteKit pages
+        └── lib/
+            ├── api.js       Typed fetch wrapper
+            ├── stores/      Svelte 5 reactive state
+            └── components/  UI components
+```
+
+## Non-Goals
+
+- Multi-user / auth (single-user by design)
+- Cloud sync or remote storage
+- Twitter/X integration
+- Public internet exposure (designed for a private network / Tailscale)
+
+## License
+
+MIT

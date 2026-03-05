@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List
 import xml.etree.ElementTree as ET
 
@@ -21,7 +21,7 @@ def _compute_health(feed: Feed) -> str:
         return "error"
     if not feed.last_fetched:
         return "never"
-    age = (datetime.utcnow() - feed.last_fetched).total_seconds()
+    age = (datetime.now(timezone.utc) - feed.last_fetched).total_seconds()
     if age > feed.poll_interval * 3:
         return "stale"
     return "ok"

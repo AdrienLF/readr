@@ -17,6 +17,7 @@ dependencies = [
     "python-multipart>=0.0.12",
     "lxml>=5.0.0",
     "lxml-html-clean>=0.4.0",
+    "greenlet>=3.3.2",
 ]
 
 [dependency-groups]
