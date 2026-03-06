@@ -281,7 +281,6 @@
                 onUpdate={handleUpdate}
                 {density}
                 focused={focusedIndex === flatIndex}
-                onMarkRead={() => markRead(article)}
               />
             </div>
           {/each}

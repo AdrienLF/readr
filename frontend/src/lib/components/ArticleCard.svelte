@@ -4,27 +4,10 @@
   import { app } from '$lib/stores/app.svelte.js';
   import { articles as articlesApi } from '$lib/api.js';
 
-  let { article, onUpdate, density = 'magazine', focused = false, onMarkRead } = $props();
+  let { article, onUpdate, density = 'magazine', focused = false } = $props();
 
   let cardEl = $state(null);
 
-  // Mark as read on scroll (magazine + list modes only)
-  $effect(() => {
-    if (!cardEl || article.is_read || (density !== 'magazine' && density !== 'list')) return;
-    let timer;
-    const observer = new IntersectionObserver((entries) => {
-      if (entries[0].isIntersecting) {
-        timer = setTimeout(() => {
-          onMarkRead?.();
-          observer.disconnect();
-        }, 1000);
-      } else {
-        clearTimeout(timer);
-      }
-    }, { threshold: 0.6 });
-    observer.observe(cardEl);
-    return () => { observer.disconnect(); clearTimeout(timer); };
-  });
 
   function timeAgo(date) {
     if (!date) return '';
