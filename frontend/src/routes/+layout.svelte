@@ -78,7 +78,7 @@
     </div>
 
     <!-- Page content -->
-    <div class="flex-1 overflow-hidden pb-16 md:pb-0">
+    <div class="flex-1 flex flex-col min-h-0 overflow-hidden pb-16 md:pb-0">
       {@render children()}
     </div>
   </div>
