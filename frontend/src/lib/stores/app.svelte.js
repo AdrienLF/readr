@@ -9,6 +9,7 @@ class AppState {
   // Article reader
   selectedArticleId = $state(null);
   readerOpen = $state(false);
+  articleIds = $state([]);
 
   // UI
   sidebarOpen = $state(true);
@@ -43,6 +44,20 @@ class AppState {
   openArticle(id) {
     this.selectedArticleId = id;
     this.readerOpen = true;
+  }
+
+  openNextArticle() {
+    const idx = this.articleIds.indexOf(this.selectedArticleId);
+    if (idx !== -1 && idx < this.articleIds.length - 1) {
+      this.selectedArticleId = this.articleIds[idx + 1];
+    }
+  }
+
+  openPrevArticle() {
+    const idx = this.articleIds.indexOf(this.selectedArticleId);
+    if (idx > 0) {
+      this.selectedArticleId = this.articleIds[idx - 1];
+    }
   }
 
   closeReader() {

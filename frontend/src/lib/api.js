@@ -101,7 +101,7 @@ export const topics = {
 // Digests
 export const digests = {
   list: (date) => get(`/digests${date ? `?target_date=${date}` : ''}`),
-  generate: (topic_id, date) => post('/digests/generate', { topic_id: topic_id ?? null, date: date ?? null }),
+  generate: (topic_id, date, force = true) => post('/digests/generate', { topic_id: topic_id ?? null, date: date ?? null, force }),
 };
 
 // Saved searches

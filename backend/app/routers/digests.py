@@ -44,7 +44,7 @@ async def trigger_digest(
     target_date = payload.date or date.today().isoformat()
 
     try:
-        await generate_all_digests(target_date, payload.topic_id)
+        await generate_all_digests(target_date, payload.topic_id, force=payload.force)
     except Exception as e:
         raise HTTPException(500, f"Digest generation failed: {e}")
 

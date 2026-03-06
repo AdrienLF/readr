@@ -228,6 +228,7 @@ class DigestResponse(BaseModel):
 class DigestGenerateRequest(BaseModel):
     topic_id: Optional[int] = None
     date: Optional[str] = None  # YYYY-MM-DD, defaults to today
+    force: bool = False
 
 
 # --- Settings ---

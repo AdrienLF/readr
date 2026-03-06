@@ -5,6 +5,7 @@
   import {
     X, ExternalLink, Bookmark, BookmarkCheck, BookmarkPlus, MessageSquare,
     Zap, Tag, StickyNote, Globe, ThumbsUp, ThumbsDown, Highlighter, Cpu,
+    ChevronLeft, ChevronRight,
   } from 'lucide-svelte';
   import { app } from '$lib/stores/app.svelte.js';
   import { articles as articlesApi, tags as tagsApi } from '$lib/api.js';
@@ -226,13 +227,24 @@
     return ENTITY_TYPE_COLORS[type] ?? ENTITY_TYPE_COLORS.TOPIC;
   }
 
-  // Close on Escape
+  let currentIndex = $derived(app.articleIds.indexOf(app.selectedArticleId));
+  let hasPrev = $derived(currentIndex > 0);
+  let hasNext = $derived(currentIndex !== -1 && currentIndex < app.articleIds.length - 1);
+
+  // Close on Escape, navigate with arrow keys
   function handleKeydown(e) {
+    if (!app.readerOpen) return;
+    const tag = e.target?.tagName;
+    if (tag === 'TEXTAREA' || e.target?.isContentEditable) return;
     if (e.key === 'Escape') {
       if (pickerVisible) { pickerVisible = false; return; }
       if (noteEditing) { noteEditing = false; return; }
       if (tagsOpen) { tagsOpen = false; return; }
       app.closeReader();
+    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+      if (hasPrev) { e.preventDefault(); app.openPrevArticle(); }
+    } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+      if (hasNext) { e.preventDefault(); app.openNextArticle(); }
     }
   }
 </script>
@@ -276,9 +288,29 @@
 >
   <!-- Toolbar -->
   <div class="flex items-center justify-between px-4 py-3 border-b border-zinc-800 shrink-0">
-    <button onclick={() => app.closeReader()} class="btn-ghost p-2" aria-label="Close">
-      <X size={18} />
-    </button>
+    <div class="flex items-center gap-1">
+      <button onclick={() => app.closeReader()} class="btn-ghost p-2" aria-label="Close">
+        <X size={18} />
+      </button>
+      <button
+        onclick={() => app.openPrevArticle()}
+        disabled={!hasPrev}
+        class="btn-ghost p-2 disabled:opacity-30 disabled:cursor-not-allowed"
+        aria-label="Previous article"
+        title="Previous article (←)"
+      >
+        <ChevronLeft size={18} />
+      </button>
+      <button
+        onclick={() => app.openNextArticle()}
+        disabled={!hasNext}
+        class="btn-ghost p-2 disabled:opacity-30 disabled:cursor-not-allowed"
+        aria-label="Next article"
+        title="Next article (→)"
+      >
+        <ChevronRight size={18} />
+      </button>
+    </div>
 
     <div class="flex items-center gap-1 flex-wrap">
       {#if article}

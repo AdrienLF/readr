@@ -191,6 +191,12 @@
     (density === 'magazine' || density === 'list') ? groupArticles(items) : null
   );
 
+  // Keep the store in sync so the reader can navigate prev/next
+  $effect(() => {
+    const flat = grouped ? grouped.flatMap((g) => g.items) : items;
+    app.articleIds = flat.map((a) => a.id);
+  });
+
   // Context label for the page header
   let contextLabel = $derived(
     feedId

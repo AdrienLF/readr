@@ -139,7 +139,7 @@ describe('settings API', () => {
   afterEach(() => vi.restoreAllMocks());
 
   it('settings.get() calls GET /api/settings', async () => {
-    const mockSettings = { digest_time: '07:00', ollama_model: 'qwen3:8b', fetch_interval: 3600 };
+    const mockSettings = { digest_time: '07:00', ollama_model: 'qwen3.5:9b', fetch_interval: 3600 };
     global.fetch = mockFetch(200, mockSettings);
     const { settings } = await import('$lib/api.js');
     const result = await settings.get();
@@ -147,7 +147,7 @@ describe('settings API', () => {
   });
 
   it('settings.update() sends PUT with body', async () => {
-    global.fetch = mockFetch(200, { digest_time: '08:00', ollama_model: 'qwen3:8b', fetch_interval: 3600 });
+    global.fetch = mockFetch(200, { digest_time: '08:00', ollama_model: 'qwen3.5:9b', fetch_interval: 3600 });
     const { settings } = await import('$lib/api.js');
     await settings.update({ digest_time: '08:00' });
     expect(fetch).toHaveBeenCalledWith(

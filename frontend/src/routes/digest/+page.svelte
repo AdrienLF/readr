@@ -8,6 +8,14 @@
 
   app.activeView = 'digest';
 
+  const renderer = new marked.Renderer();
+  const origLink = renderer.link.bind(renderer);
+  renderer.link = function (args) {
+    const html = origLink(args);
+    return html.replace('<a ', '<a target="_blank" rel="noopener noreferrer" ');
+  };
+  marked.use({ renderer });
+
   let digestList = $state([]);
   let loading = $state(false);
   let generating = $state(false);
@@ -29,14 +37,7 @@
     generateError = '';
     try {
       const results = await digestsApi.generate(topicId, selectedDate);
-      // Merge newly generated into the list (avoid duplicates)
-      if (results?.length) {
-        const existingIds = new Set(digestList.map((d) => d.id));
-        digestList = [...digestList, ...results.filter((d) => !existingIds.has(d.id))];
-      } else {
-        // May have returned empty if no articles — reload to show current state
-        await load();
-      }
+      digestList = results ?? [];
     } catch (err) {
       generateError = err.message || 'Generation failed';
     } finally {

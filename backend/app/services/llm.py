@@ -1,7 +1,7 @@
 import logging
 from datetime import date, datetime, timedelta, timezone
 from ollama import AsyncClient
-from sqlalchemy import select
+from sqlalchemy import select, delete
 from sqlalchemy.orm import selectinload
 
 from ..database import SessionLocal
@@ -24,25 +24,26 @@ async def generate_digest_for_topic(
     db,
 ) -> str | None:
     # Fetch articles from the last 24h for this topic
-    since = datetime.now(timezone.utc) - timedelta(hours=24)
+    since = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=24)
 
     if topic_id is None:
-        # Global digest — all articles
         stmt = (
             select(Article)
+            .options(selectinload(Article.feed))
             .where(Article.fetched_at >= since)
             .order_by(Article.published_at.desc())
-            .limit(60)
+            .limit(200)
         )
     else:
         stmt = (
             select(Article)
             .join(Feed)
             .join(Feed.topics)
+            .options(selectinload(Article.feed))
             .where(Topic.id == topic_id)
             .where(Article.fetched_at >= since)
             .order_by(Article.published_at.desc())
-            .limit(60)
+            .limit(200)
         )
 
     articles = (await db.execute(stmt)).scalars().all()
@@ -50,22 +51,48 @@ async def generate_digest_for_topic(
     if not articles:
         return None
 
-    articles_text = "\n\n".join(
-        f"Source: {a.feed_id}\nTitle: {a.title}\nExcerpt: {(a.excerpt or '')[:300]}"
-        for a in articles
-    )
+    # Group articles by source for better context
+    from collections import defaultdict
+    by_source = defaultdict(list)
+    for a in articles:
+        source = a.feed.title if a.feed else f"Feed #{a.feed_id}"
+        by_source[source].append(a)
+
+    articles_text = ""
+    for source, arts in by_source.items():
+        articles_text += f"\n### {source} ({len(arts)} articles)\n"
+        for a in arts[:5]:  # max 5 per source to keep prompt manageable
+            excerpt = (a.excerpt or "")[:200].replace("\n", " ")
+            articles_text += f"- [{a.title}]({a.url})"
+            if excerpt:
+                articles_text += f" — {excerpt}"
+            articles_text += "\n"
+        if len(arts) > 5:
+            articles_text += f"  ...and {len(arts) - 5} more\n"
+
+    n_sources = len(by_source)
+    n_articles = len(articles)
 
     model = await _get_ollama_model()
-    prompt = f"""You are a news curator. Based on the articles below from {target_date}, write a concise daily digest for the topic "{topic_name}".
+    prompt = f"""You are a personal news curator for someone with extremely diverse interests, from tech and AI to woodworking, cooking, finance, music production, travel, and many more. Today is {target_date}. You are summarizing their "{topic_name}" feed.
 
-Structure your response as:
-1. **Overview** — 2-3 sentence summary of the day
-2. **Top Stories** — 3-5 bullets, one sentence each
-3. **Trends** — brief note on any patterns
+You have {n_articles} articles from {n_sources} sources in the last 24 hours.
 
-Be concise and direct. No filler.
+Write a daily digest structured as follows:
 
-Articles:
+1. **Highlights** — The 3-5 most interesting/important stories across all sources. One short paragraph each with the source name.
+2. **By Theme** — Group the remaining noteworthy content into thematic sections (e.g. "Tech & AI", "Making & Crafting", "Food & Cooking", "Finance", etc.). Use 3-8 themes based on what's actually present. Each theme gets 2-5 bullet points. Skip themes with nothing interesting.
+3. **Quick Hits** — A rapid-fire list of 5-10 other things worth a glance, one line each.
+
+Guidelines:
+- IMPORTANT: Every story you mention MUST be a markdown link to the original article. Use the exact URLs from the input. Format: [short description](url). Never fabricate URLs.
+- Be concise but specific — include concrete details, not vague summaries
+- Prioritize surprising, useful, or actionable content over routine posts
+- Skip low-quality, repetitive, or clickbait content entirely
+- Use the actual source/subreddit names so the reader knows where things came from
+- Do not invent or hallucinate content — only summarize what's in the articles below
+
+Articles by source:
 {articles_text}"""
 
     client = AsyncClient(host=app_settings.ollama_base_url)
@@ -131,13 +158,21 @@ Content: {text}"""
         return []
 
 
-async def generate_all_digests(target_date: str | None = None, topic_id: int | None = None):
+async def generate_all_digests(target_date: str | None = None, topic_id: int | None = None, force: bool = False):
     if target_date is None:
         target_date = date.today().isoformat()
 
     model = await _get_ollama_model()
 
     async with SessionLocal() as db:
+        if force:
+            stmt_del = delete(Digest).where(Digest.date == target_date)
+            if topic_id is not None:
+                stmt_del = stmt_del.where(Digest.topic_id == topic_id)
+            await db.execute(stmt_del)
+            await db.commit()
+            logger.info(f"Force-deleted existing digests for {target_date}")
+
         if topic_id is not None:
             # Generate for a specific topic only
             topic = await db.get(Topic, topic_id)
@@ -148,13 +183,14 @@ async def generate_all_digests(target_date: str | None = None, topic_id: int | N
             topics_to_process = [(None, "All Topics")] + [(t.id, t.name) for t in topics]
 
         for tid, tname in topics_to_process:
-            # Skip if already generated today
-            existing = await db.execute(
-                select(Digest).where(Digest.date == target_date, Digest.topic_id == tid)
-            )
-            if existing.scalar_one_or_none():
-                logger.info(f"Digest already exists for {tname} on {target_date}")
-                continue
+            # Skip if already generated (unless force)
+            if not force:
+                existing = await db.execute(
+                    select(Digest).where(Digest.date == target_date, Digest.topic_id == tid)
+                )
+                if existing.scalars().first():
+                    logger.info(f"Digest already exists for {tname} on {target_date}")
+                    continue
 
             logger.info(f"Generating digest for '{tname}'...")
             content = await generate_digest_for_topic(tid, tname, target_date, db)
