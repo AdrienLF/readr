@@ -117,7 +117,7 @@ async def test_generate_returns_newly_created_digests(client):
 
     target_date = "2024-06-01"
 
-    async def fake_generate(date, topic_id):
+    async def fake_generate(date, topic_id, force=False):
         async with SessionLocal() as db:
             db.add(Digest(
                 date=date,
