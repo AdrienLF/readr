@@ -7,6 +7,7 @@
   import ArticleReader from '$lib/components/ArticleReader.svelte';
   import AddFeedModal from '$lib/components/AddFeedModal.svelte';
   import TopicModal from '$lib/components/TopicModal.svelte';
+  import SmartSearchModal from '$lib/components/SmartSearchModal.svelte';
   import MobileNav from '$lib/components/MobileNav.svelte';
   import KeyboardHelp from '$lib/components/KeyboardHelp.svelte';
 
@@ -63,6 +64,8 @@
       <span class="font-semibold text-sm">
         {#if app.selectedTopicId !== null}
           {app.topics.find((t) => t.id === app.selectedTopicId)?.name || 'Topic'}
+        {:else if app.activeView === 'smart-search'}
+          {app.savedSearches.find((s) => s.id === app.selectedSmartSearchId)?.name || 'Smart Search'}
         {:else if app.activeView === 'bookmarks'}
           Bookmarks
         {:else if app.activeView === 'search'}
@@ -89,6 +92,7 @@
   <!-- Modals -->
   <AddFeedModal />
   <TopicModal />
+  <SmartSearchModal />
 
   <!-- Mobile bottom nav -->
   <MobileNav />

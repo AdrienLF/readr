@@ -1,6 +1,6 @@
 <script>
   import { untrack } from 'svelte';
-  import { articles as articlesApi } from '$lib/api.js';
+  import { articles as articlesApi, savedSearches as savedSearchesApi } from '$lib/api.js';
   import { app } from '$lib/stores/app.svelte.js';
   import ArticleCard from './ArticleCard.svelte';
   import { RefreshCw, AlignJustify, List, Grid2X2, LayoutGrid, TrendingUp } from 'lucide-svelte';
@@ -11,7 +11,7 @@
   let focusedIndex = $state(-1);
   let cardEls = $state([]);
 
-  let { topicId = null, feedId = null, bookmarksOnly = false, savedOnly = false } = $props();
+  let { topicId = null, feedId = null, bookmarksOnly = false, savedOnly = false, smartSearchId = null } = $props();
 
   let items = $state([]);
   let total = $state(0);
@@ -31,15 +31,20 @@
     loading = true;
     if (reset) { page = 1; items = []; }
     try {
-      const params = {
-        page, page_size: 50,
-        sort,
-        ...(topicId !== null && { topic_id: topicId }),
-        ...(feedId !== null && { feed_id: feedId }),
-        ...(bookmarksOnly && { is_bookmarked: true }),
-        ...(savedOnly && { is_saved: true }),
-      };
-      const res = await articlesApi.list(params);
+      let res;
+      if (smartSearchId !== null) {
+        res = await savedSearchesApi.articles(smartSearchId, { page, page_size: 50 });
+      } else {
+        const params = {
+          page, page_size: 50,
+          sort,
+          ...(topicId !== null && { topic_id: topicId }),
+          ...(feedId !== null && { feed_id: feedId }),
+          ...(bookmarksOnly && { is_bookmarked: true }),
+          ...(savedOnly && { is_saved: true }),
+        };
+        res = await articlesApi.list(params);
+      }
       items = reset ? res.items : [...items, ...res.items];
       total = res.total;
       hasMore = res.has_more;
@@ -64,7 +69,7 @@
   function handleKeydown(e) {
     const tag = e.target?.tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target?.isContentEditable) return;
-    if (app.activeView !== 'feed' && !bookmarksOnly && !savedOnly) return;
+    if (app.activeView !== 'feed' && app.activeView !== 'smart-search' && !bookmarksOnly && !savedOnly) return;
 
     const flat = grouped ? grouped.flatMap((g) => g.items) : items;
 
@@ -123,7 +128,7 @@
 
   // Reset focus when content changes
   $effect(() => {
-    void [topicId, feedId, bookmarksOnly, savedOnly];
+    void [topicId, feedId, bookmarksOnly, savedOnly, smartSearchId];
     focusedIndex = -1;
   });
 
@@ -134,7 +139,7 @@
   }
 
   $effect(() => {
-    void [topicId, feedId, bookmarksOnly, savedOnly];
+    void [topicId, feedId, bookmarksOnly, savedOnly, smartSearchId];
     untrack(() => load(true));
   });
 

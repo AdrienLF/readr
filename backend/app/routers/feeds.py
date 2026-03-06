@@ -94,6 +94,38 @@ async def add_feed(
     return await _enrich_feed(feed, db)
 
 
+@router.post("/bulk", status_code=201)
+async def bulk_add_feeds(
+    payload: list[FeedCreate],
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db),
+):
+    """Add many feeds at once, skipping network discovery. URLs are used as-is."""
+    existing_result = await db.execute(select(Feed.url))
+    existing_urls = {row[0] for row in existing_result.all()}
+
+    added = 0
+    skipped = 0
+    for item in payload:
+        if item.url in existing_urls:
+            skipped += 1
+            continue
+        source_type = "reddit" if "reddit.com" in item.url else "rss"
+        feed = Feed(url=item.url, title=item.url, source_type=source_type)
+        db.add(feed)
+        existing_urls.add(item.url)
+        added += 1
+
+    await db.commit()
+
+    # Queue article fetches in background
+    result = await db.execute(select(Feed.id).where(Feed.title == Feed.url))
+    for (feed_id,) in result.all():
+        background_tasks.add_task(fetch_and_store_feed, feed_id)
+
+    return {"added": added, "skipped": skipped}
+
+
 @router.get("/{feed_id}", response_model=FeedResponse)
 async def get_feed(feed_id: int, db: AsyncSession = Depends(get_db)):
     result = await db.execute(

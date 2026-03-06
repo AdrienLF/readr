@@ -1,10 +1,10 @@
-import { feeds as feedsApi, topics as topicsApi } from '$lib/api.js';
+import { feeds as feedsApi, topics as topicsApi, savedSearches as savedSearchesApi } from '$lib/api.js';
 
 class AppState {
   // Navigation
   selectedTopicId = $state(null);
   selectedFeedId = $state(null);
-  activeView = $state('feed'); // feed | bookmarks | saved | search | digest | settings
+  activeView = $state('feed'); // feed | bookmarks | saved | search | digest | settings | smart-search
 
   // Article reader
   selectedArticleId = $state(null);
@@ -14,11 +14,14 @@ class AppState {
   sidebarOpen = $state(true);
   addFeedOpen = $state(false);
   addTopicOpen = $state(false);
+  addSmartSearchOpen = $state(false);
   shortcutsVisible = $state(false);
 
   // Data
   feeds = $state([]);
   topics = $state([]);
+  savedSearches = $state([]);
+  selectedSmartSearchId = $state(null);
 
   get unreadTotal() {
     return this.feeds.reduce((sum, f) => sum + (f.unread_count || 0), 0);
@@ -71,6 +74,15 @@ class AppState {
     if (window.innerWidth < 768) this.sidebarOpen = false;
   }
 
+  selectSmartSearch(id) {
+    this.selectedSmartSearchId = id;
+    this.selectedFeedId = null;
+    this.selectedTopicId = null;
+    this.activeView = 'smart-search';
+    this.closeReader();
+    if (window.innerWidth < 768) this.sidebarOpen = false;
+  }
+
   async loadFeeds() {
     try {
       this.feeds = await feedsApi.list();
@@ -87,8 +99,16 @@ class AppState {
     }
   }
 
+  async loadSavedSearches() {
+    try {
+      this.savedSearches = await savedSearchesApi.list();
+    } catch (e) {
+      console.error('Failed to load saved searches:', e);
+    }
+  }
+
   async init() {
-    await Promise.all([this.loadFeeds(), this.loadTopics()]);
+    await Promise.all([this.loadFeeds(), this.loadTopics(), this.loadSavedSearches()]);
   }
 }
 

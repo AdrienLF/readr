@@ -180,3 +180,37 @@ class Entity(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
 
     article: Mapped["Article"] = relationship(back_populates="entities")
+
+
+class SavedSearch(Base):
+    """A named smart search whose query is expanded into terms by Ollama."""
+    __tablename__ = "saved_searches"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(256))
+    query: Mapped[str] = mapped_column(Text)
+    # Ollama-expanded list of search terms, stored as JSON array
+    expanded_terms: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)
+    terms_refreshed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
+
+    matches: Mapped[list["ArticleSearchMatch"]] = relationship(
+        back_populates="search", cascade="all, delete-orphan"
+    )
+
+
+class ArticleSearchMatch(Base):
+    """Pre-computed match between an article and a saved search."""
+    __tablename__ = "article_search_matches"
+
+    article_id: Mapped[int] = mapped_column(
+        ForeignKey("articles.id", ondelete="CASCADE"), primary_key=True
+    )
+    search_id: Mapped[int] = mapped_column(
+        ForeignKey("saved_searches.id", ondelete="CASCADE"), primary_key=True
+    )
+    score: Mapped[float] = mapped_column(Float)  # 0–1, fraction of terms matched
+    matched_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
+
+    article: Mapped["Article"] = relationship()
+    search: Mapped["SavedSearch"] = relationship(back_populates="matches")

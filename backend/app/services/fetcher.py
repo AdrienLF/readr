@@ -9,6 +9,7 @@ from sqlalchemy import select, func
 from ..models import Feed, Article, MuteFilter, Rule, Tag, ArticleSignal
 from ..database import SessionLocal
 from .extractor import fetch_full_content, extract_from_html
+from .smart_search import match_article_to_all_searches
 
 logger = logging.getLogger(__name__)
 
@@ -321,6 +322,9 @@ async def fetch_and_store_feed(feed_id: int):
                     tag = await db.get(Tag, tag_id)
                     if tag:
                         article.tags.append(tag)
+
+            await db.flush()  # ensure article.id is set before matching
+            await match_article_to_all_searches(article, db)
 
             new_count += 1
 

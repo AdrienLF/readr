@@ -104,6 +104,21 @@ export const digests = {
   generate: (topic_id, date) => post('/digests/generate', { topic_id: topic_id ?? null, date: date ?? null }),
 };
 
+// Saved searches
+export const savedSearches = {
+  list: () => get('/saved-searches'),
+  create: (data) => post('/saved-searches', data),
+  delete: (id) => del(`/saved-searches/${id}`),
+  articles: (id, params = {}) => {
+    const q = new URLSearchParams();
+    for (const [k, v] of Object.entries(params)) {
+      if (v !== undefined && v !== null) q.set(k, v);
+    }
+    return get(`/saved-searches/${id}/articles?${q}`);
+  },
+  refreshTerms: (id) => post(`/saved-searches/${id}/refresh-terms`),
+};
+
 // Settings
 export const settings = {
   get: () => get('/settings'),

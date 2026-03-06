@@ -1,7 +1,16 @@
 <script>
-  import { Home, Bookmark, BookmarkCheck, Search, Zap, Settings, Plus, Rss, RefreshCw, ChevronRight, BookOpen, TrendingUp } from 'lucide-svelte';
+  import { Home, Bookmark, BookmarkCheck, Search, Zap, Settings, Plus, Rss, RefreshCw, ChevronRight, BookOpen, TrendingUp, Sparkles, Trash2 } from 'lucide-svelte';
+  import { savedSearches as savedSearchesApi } from '$lib/api.js';
   import { app } from '$lib/stores/app.svelte.js';
   import { feeds as feedsApi, entities as entitiesApi } from '$lib/api.js';
+
+  async function deleteSearch(id, e) {
+    e.stopPropagation();
+    if (!confirm('Delete this smart search?')) return;
+    await savedSearchesApi.delete(id);
+    await app.loadSavedSearches();
+    if (app.selectedSmartSearchId === id) app.selectAll();
+  }
 
   let trendingOpen = $state(false);
   let trendingEntities = $state([]);
@@ -124,6 +133,50 @@
         {item.label}
       </a>
     {/each}
+
+    <!-- Smart Searches -->
+    <div class="mx-3 mt-4 mb-1 flex items-center justify-between">
+      <span class="text-[11px] font-semibold text-zinc-600 uppercase tracking-wider">Smart Searches</span>
+      <button
+        onclick={() => (app.addSmartSearchOpen = true)}
+        class="text-zinc-600 hover:text-zinc-400 transition-colors p-0.5 rounded"
+        aria-label="Add smart search"
+      >
+        <Plus size={11} />
+      </button>
+    </div>
+
+    {#each app.savedSearches as ss (ss.id)}
+      <div class="mx-2 group flex items-center gap-1 rounded-lg
+                  {app.activeView === 'smart-search' && app.selectedSmartSearchId === ss.id
+                    ? 'bg-violet-500/15'
+                    : 'hover:bg-zinc-800/50'}">
+        <button
+          onclick={() => app.selectSmartSearch(ss.id)}
+          class="flex-1 flex items-center gap-2 px-2 py-1.5 text-[13px] transition-colors min-w-0
+                 {app.activeView === 'smart-search' && app.selectedSmartSearchId === ss.id
+                   ? 'text-violet-300'
+                   : 'text-zinc-400 hover:text-zinc-100'}"
+        >
+          <Sparkles size={12} class="shrink-0 text-violet-400" />
+          <span class="flex-1 truncate text-left">{ss.name}</span>
+          {#if ss.unread_count > 0}
+            <span class="text-[11px] text-zinc-500 tabular-nums shrink-0">{ss.unread_count > 9999 ? '9999+' : ss.unread_count}</span>
+          {/if}
+        </button>
+        <button
+          onclick={(e) => deleteSearch(ss.id, e)}
+          class="opacity-0 group-hover:opacity-100 p-1 rounded hover:text-red-400 transition-all shrink-0 text-zinc-600"
+          aria-label="Delete smart search"
+        >
+          <Trash2 size={11} />
+        </button>
+      </div>
+    {/each}
+
+    {#if app.savedSearches.length === 0}
+      <p class="px-4 py-1 text-xs text-zinc-600 italic">No smart searches yet</p>
+    {/if}
 
     <!-- Divider + Topics header -->
     <div class="mx-3 mt-4 mb-1 flex items-center justify-between">
