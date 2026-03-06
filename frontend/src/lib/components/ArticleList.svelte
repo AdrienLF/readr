@@ -3,7 +3,7 @@
   import { articles as articlesApi } from '$lib/api.js';
   import { app } from '$lib/stores/app.svelte.js';
   import ArticleCard from './ArticleCard.svelte';
-  import { RefreshCw, AlignJustify, List, Grid2X2, LayoutGrid } from 'lucide-svelte';
+  import { RefreshCw, AlignJustify, List, Grid2X2, LayoutGrid, TrendingUp } from 'lucide-svelte';
 
   // Infinite scroll sentinel
   let sentinelEl = $state(null);
@@ -21,6 +21,8 @@
 
   // Density: 'magazine' | 'list' | 'grid' | 'card'
   let density = $state(typeof localStorage !== 'undefined' ? (localStorage.getItem('density') || 'magazine') : 'magazine');
+  // Sort: 'date' | 'priority'
+  let sort = $state('date');
 
   $effect(() => { localStorage.setItem('density', density); });
 
@@ -31,6 +33,7 @@
     try {
       const params = {
         page, page_size: 50,
+        sort,
         ...(topicId !== null && { topic_id: topicId }),
         ...(feedId !== null && { feed_id: feedId }),
         ...(bookmarksOnly && { is_bookmarked: true }),
@@ -111,6 +114,12 @@
       handleUpdate({ ...article, is_read: true });
     }
   }
+
+  // Reset focus and reload when sort changes
+  $effect(() => {
+    void sort;
+    untrack(() => load(true));
+  });
 
   // Reset focus when content changes
   $effect(() => {
@@ -222,7 +231,15 @@
         {/each}
       </div>
 
-      <div class="ml-auto">
+      <div class="ml-auto flex items-center gap-2">
+        <button
+          onclick={() => { sort = sort === 'date' ? 'priority' : 'date'; }}
+          title={sort === 'priority' ? 'Sorted by priority — click for latest' : 'Sorted by date — click for priority'}
+          class="btn-ghost text-xs gap-1.5 {sort === 'priority' ? 'text-violet-400' : ''}"
+        >
+          <TrendingUp size={13} />
+          <span class="hidden sm:inline">{sort === 'priority' ? 'Priority' : 'Latest'}</span>
+        </button>
         <button onclick={() => load(true)} class="btn-ghost text-xs" disabled={loading} title="Refresh">
           <RefreshCw size={13} class={loading ? 'animate-spin' : ''} />
           <span class="hidden sm:inline">Refresh</span>

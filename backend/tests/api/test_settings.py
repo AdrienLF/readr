@@ -9,7 +9,7 @@ async def test_get_settings_defaults(client):
     assert res.status_code == 200
     data = res.json()
     assert data["digest_time"] == "07:00"
-    assert data["ollama_model"] == "qwen3:8b"
+    assert data["ollama_model"] == "qwen3.5:9b"
     assert data["fetch_interval"] == 3600
 
 
@@ -47,11 +47,11 @@ async def test_update_settings_partial(client):
             "fetch_interval": 900,
         })
         # Then update only model
-        res = await client.put("/api/settings", json={"ollama_model": "qwen3:8b"})
+        res = await client.put("/api/settings", json={"ollama_model": "qwen3.5:9b"})
 
     data = res.json()
     assert data["digest_time"] == "06:00"   # unchanged
-    assert data["ollama_model"] == "qwen3:8b"  # updated
+    assert data["ollama_model"] == "qwen3.5:9b"  # updated
     assert data["fetch_interval"] == 900      # unchanged
 
 
@@ -79,7 +79,7 @@ async def test_ollama_models_returns_list(client):
     mock_resp.status_code = 200
     mock_resp.json.return_value = {
         "models": [
-            {"name": "qwen3:8b"},
+            {"name": "qwen3.5:9b"},
             {"name": "llama3:8b"},
         ]
     }
@@ -95,7 +95,7 @@ async def test_ollama_models_returns_list(client):
     assert res.status_code == 200
     data = res.json()
     assert data["status"] == "ok"
-    assert "qwen3:8b" in data["models"]
+    assert "qwen3.5:9b" in data["models"]
     assert "llama3:8b" in data["models"]
 
 

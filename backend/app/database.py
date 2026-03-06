@@ -61,7 +61,7 @@ async def init_db():
         await conn.execute(text("""
             INSERT OR IGNORE INTO settings(key, value) VALUES
                 ('digest_time', '07:00'),
-                ('ollama_model', 'qwen3:8b'),
+                ('ollama_model', 'qwen3.5:9b'),
                 ('fetch_interval', '3600')
         """))
 
@@ -74,6 +74,7 @@ async def init_db():
             "ALTER TABLE articles ADD COLUMN is_saved INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE articles ADD COLUMN note TEXT",
             "ALTER TABLE articles ADD COLUMN summary TEXT",
+            "ALTER TABLE articles ADD COLUMN priority_score REAL NOT NULL DEFAULT 0.5",
         ]
         for sql in migrations:
             try:

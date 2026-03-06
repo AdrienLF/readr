@@ -4,9 +4,9 @@ import feedparser
 import httpx
 from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 
-from ..models import Feed, Article, MuteFilter, Rule, Tag
+from ..models import Feed, Article, MuteFilter, Rule, Tag, ArticleSignal
 from ..database import SessionLocal
 from .extractor import fetch_full_content, extract_from_html
 
@@ -208,6 +208,15 @@ async def fetch_and_store_feed(feed_id: int):
         rules_result = await db.execute(select(Rule).where(Rule.is_active == True))
         rules = rules_result.scalars().all()
 
+        # Compute feed's priority score from historical signals
+        likes = (await db.execute(
+            select(func.count()).where(ArticleSignal.feed_id == feed_id, ArticleSignal.signal == 1)
+        )).scalar() or 0
+        total_signals = (await db.execute(
+            select(func.count()).where(ArticleSignal.feed_id == feed_id)
+        )).scalar() or 0
+        feed_priority = (likes / total_signals) if total_signals > 0 else 0.5
+
         logger.info(f"Fetching feed: {feed.title or feed.url}")
         try:
             parsed = feedparser.parse(feed.url)
@@ -280,6 +289,7 @@ async def fetch_and_store_feed(feed_id: int):
                 audio_url=audio_url,
                 author=author,
                 published_at=published_at,
+                priority_score=feed_priority,
             )
 
             # Apply rules before persisting

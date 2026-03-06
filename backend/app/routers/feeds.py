@@ -21,7 +21,10 @@ def _compute_health(feed: Feed) -> str:
         return "error"
     if not feed.last_fetched:
         return "never"
-    age = (datetime.now(timezone.utc) - feed.last_fetched).total_seconds()
+    lf = feed.last_fetched
+    if lf.tzinfo is None:
+        lf = lf.replace(tzinfo=timezone.utc)
+    age = (datetime.now(timezone.utc) - lf).total_seconds()
     if age > feed.poll_interval * 3:
         return "stale"
     return "ok"

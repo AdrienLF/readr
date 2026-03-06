@@ -64,6 +64,15 @@ export const articles = {
   addTag: (id, tag_id) => post(`/articles/${id}/tags/${tag_id}`),
   removeTag: (id, tag_id) => del(`/articles/${id}/tags/${tag_id}`),
   getComments: (id) => get(`/articles/${id}/comments`),
+  signal: (id, signal) => post(`/articles/${id}/signal`, { signal }),
+  addHighlight: (id, data) => post(`/articles/${id}/highlights`, data),
+  deleteHighlight: (id, highlight_id) => del(`/articles/${id}/highlights/${highlight_id}`),
+  extractEntities: (id) => post(`/articles/${id}/entities`),
+};
+
+// Entities
+export const entities = {
+  trending: (hours = 24) => get(`/entities/trending?hours=${hours}`),
 };
 
 // Tags

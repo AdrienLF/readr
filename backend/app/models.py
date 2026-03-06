@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Optional
-from sqlalchemy import String, Text, Integer, Boolean, DateTime, ForeignKey, Table, Column, func, JSON
+from sqlalchemy import String, Text, Integer, Boolean, DateTime, Float, ForeignKey, Table, Column, func, JSON, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from .database import Base
 
@@ -63,9 +63,12 @@ class Article(Base):
     audio_url: Mapped[Optional[str]] = mapped_column(String(2048))
     note: Mapped[Optional[str]] = mapped_column(Text)
     summary: Mapped[Optional[str]] = mapped_column(Text)
+    priority_score: Mapped[float] = mapped_column(Float, default=0.5, index=True)
 
     feed: Mapped["Feed"] = relationship(back_populates="articles")
     tags: Mapped[list["Tag"]] = relationship(secondary="article_tags", back_populates="articles")
+    highlights: Mapped[list["Highlight"]] = relationship(back_populates="article", cascade="all, delete-orphan")
+    entities: Mapped[list["Entity"]] = relationship(back_populates="article", cascade="all, delete-orphan")
 
 
 class Topic(Base):
@@ -139,3 +142,41 @@ class Setting(Base):
 
     key: Mapped[str] = mapped_column(String(128), primary_key=True)
     value: Mapped[Optional[str]] = mapped_column(Text)
+
+
+class Highlight(Base):
+    __tablename__ = "highlights"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    article_id: Mapped[int] = mapped_column(ForeignKey("articles.id", ondelete="CASCADE"), index=True)
+    text: Mapped[str] = mapped_column(Text)
+    note: Mapped[Optional[str]] = mapped_column(Text)
+    color: Mapped[str] = mapped_column(String(32), default="yellow")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
+
+    article: Mapped["Article"] = relationship(back_populates="highlights")
+
+
+class ArticleSignal(Base):
+    """Thumbs up / down signal per article (one signal per article)."""
+    __tablename__ = "article_signals"
+    __table_args__ = (UniqueConstraint("article_id"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    article_id: Mapped[int] = mapped_column(ForeignKey("articles.id", ondelete="CASCADE"), index=True)
+    feed_id: Mapped[int] = mapped_column(ForeignKey("feeds.id", ondelete="CASCADE"), index=True)
+    signal: Mapped[int] = mapped_column(Integer)  # 1 = like, -1 = dislike
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
+
+
+class Entity(Base):
+    """Named entity extracted from an article via LLM."""
+    __tablename__ = "entities"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    article_id: Mapped[int] = mapped_column(ForeignKey("articles.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(256), index=True)
+    entity_type: Mapped[str] = mapped_column(String(32))  # PERSON, ORG, PLACE, TOPIC, PRODUCT, EVENT
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
+
+    article: Mapped["Article"] = relationship(back_populates="entities")

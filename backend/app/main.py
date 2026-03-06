@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .database import init_db, _seed_feeds_if_empty
 from .services.scheduler import start_scheduler, stop_scheduler
-from .routers import feeds, articles, topics, digests, settings, filters, tags, rules
+from .routers import feeds, articles, topics, digests, settings, filters, tags, rules, entities
 
 
 @asynccontextmanager
@@ -33,6 +33,7 @@ app.include_router(settings.router, prefix="/api/settings", tags=["settings"])
 app.include_router(filters.router, prefix="/api/filters", tags=["filters"])
 app.include_router(tags.router, prefix="/api/tags", tags=["tags"])
 app.include_router(rules.router, prefix="/api/rules", tags=["rules"])
+app.include_router(entities.router, prefix="/api/entities", tags=["entities"])
 
 
 @app.get("/api/health")

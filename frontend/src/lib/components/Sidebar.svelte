@@ -1,7 +1,35 @@
 <script>
-  import { Home, Bookmark, BookmarkCheck, Search, Zap, Settings, Plus, Rss, RefreshCw, ChevronRight, BookOpen } from 'lucide-svelte';
+  import { Home, Bookmark, BookmarkCheck, Search, Zap, Settings, Plus, Rss, RefreshCw, ChevronRight, BookOpen, TrendingUp } from 'lucide-svelte';
   import { app } from '$lib/stores/app.svelte.js';
-  import { feeds as feedsApi } from '$lib/api.js';
+  import { feeds as feedsApi, entities as entitiesApi } from '$lib/api.js';
+
+  let trendingOpen = $state(false);
+  let trendingEntities = $state([]);
+  let trendingLoading = $state(false);
+
+  async function loadTrending() {
+    if (trendingLoading) return;
+    trendingLoading = true;
+    try {
+      trendingEntities = await entitiesApi.trending(24);
+    } finally {
+      trendingLoading = false;
+    }
+  }
+
+  function toggleTrending() {
+    trendingOpen = !trendingOpen;
+    if (trendingOpen && trendingEntities.length === 0) loadTrending();
+  }
+
+  const ENTITY_COLORS = {
+    PERSON:  'text-violet-400',
+    ORG:     'text-blue-400',
+    PLACE:   'text-emerald-400',
+    TOPIC:   'text-amber-400',
+    PRODUCT: 'text-cyan-400',
+    EVENT:   'text-rose-400',
+  };
 
   let refreshing = $state(false);
   // Set of topic IDs that are expanded in the sidebar
@@ -182,6 +210,39 @@
 
     {#if app.topics.length === 0}
       <p class="px-4 py-2 text-xs text-zinc-600 italic">No topics yet</p>
+    {/if}
+
+    <!-- Trending entities -->
+    <div class="mx-3 mt-4 mb-1">
+      <button
+        onclick={toggleTrending}
+        class="flex items-center gap-1.5 w-full text-left group"
+      >
+        <span class="text-[11px] font-semibold text-zinc-600 uppercase tracking-wider flex-1">Trending</span>
+        <TrendingUp size={11} class="text-zinc-600 group-hover:text-zinc-400 transition-colors" />
+        <ChevronRight size={11} class="text-zinc-600 transition-transform duration-150 {trendingOpen ? 'rotate-90' : ''}" />
+      </button>
+    </div>
+    {#if trendingOpen}
+      <div class="mx-2 mb-2">
+        {#if trendingLoading}
+          <p class="text-xs text-zinc-600 px-2 py-1">Loading…</p>
+        {:else if trendingEntities.length === 0}
+          <p class="text-xs text-zinc-600 italic px-2 py-1">No entity data yet — use the Cpu button in the reader to extract entities from articles.</p>
+        {:else}
+          <div class="flex flex-wrap gap-1 px-1 py-1">
+            {#each trendingEntities.slice(0, 15) as e}
+              <span
+                class="text-[11px] px-1.5 py-0.5 rounded bg-zinc-800 border border-zinc-700 {ENTITY_COLORS[e.entity_type] ?? 'text-zinc-400'}"
+                title="{e.entity_type} · {e.count} mention{e.count === 1 ? '' : 's'}"
+              >{e.name}</span>
+            {/each}
+          </div>
+          <button onclick={loadTrending} class="text-[10px] text-zinc-600 hover:text-zinc-400 px-2 mt-1 transition-colors">
+            Refresh
+          </button>
+        {/if}
+      </div>
     {/if}
 
     <!-- Uncategorized feeds -->

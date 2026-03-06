@@ -115,6 +115,40 @@ class RuleResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+# --- Highlight ---
+
+class HighlightCreate(BaseModel):
+    text: str
+    note: Optional[str] = None
+    color: str = "yellow"
+
+
+class HighlightResponse(BaseModel):
+    id: int
+    article_id: int
+    text: str
+    note: Optional[str]
+    color: str
+    created_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+
+# --- Entity ---
+
+class EntityResponse(BaseModel):
+    id: int
+    name: str
+    entity_type: str
+    created_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+
+class TrendingEntity(BaseModel):
+    name: str
+    entity_type: str
+    count: int
+
+
 # --- Article ---
 
 class ArticleResponse(BaseModel):
@@ -136,7 +170,11 @@ class ArticleResponse(BaseModel):
     is_saved: bool = False
     note: Optional[str] = None
     summary: Optional[str] = None
+    priority_score: float = 0.5
+    user_signal: Optional[int] = None
     tags: list[TagBrief] = []
+    highlights: list[HighlightResponse] = []
+    entities: list[EntityResponse] = []
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -155,6 +193,7 @@ class ArticleListItem(BaseModel):
     is_read: bool
     is_bookmarked: bool
     is_saved: bool = False
+    priority_score: float = 0.5
     model_config = ConfigDict(from_attributes=True)
 
 

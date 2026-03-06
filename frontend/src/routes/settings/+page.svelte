@@ -6,7 +6,7 @@
 
   app.activeView = 'settings';
 
-  let cfg = $state({ digest_time: '07:00', ollama_model: 'qwen3:8b', fetch_interval: 3600 });
+  let cfg = $state({ digest_time: '07:00', ollama_model: 'qwen3.5:9b', fetch_interval: 3600 });
   let saving = $state(false);
   let saved = $state(false);
   let editingFeed = $state(null);
@@ -251,7 +251,7 @@
             id="ollama-model"
             class="input"
             type="text"
-            placeholder="qwen3:8b"
+            placeholder="qwen3.5:9b"
             bind:value={cfg.ollama_model}
           />
         {/if}
@@ -260,7 +260,7 @@
           <p class="text-xs text-red-400/80 mt-1">{ollamaError || 'Cannot reach Ollama. Is the container running?'}</p>
         {:else}
           <p class="text-xs text-zinc-600 mt-1">
-            Pull a model: <code class="text-zinc-500">docker exec rss-reader-ollama-1 ollama pull qwen3:8b</code>
+            Pull a model: <code class="text-zinc-500">docker exec rss-reader-ollama-1 ollama pull qwen3.5:9b</code>
           </p>
         {/if}
       </div>
@@ -287,6 +287,12 @@
 
       <div class="space-y-1">
         {#each app.feeds as feed (feed.id)}
+          {@const healthBadge = {
+            ok:    { cls: 'bg-emerald-500/15 text-emerald-400 border-emerald-800/40', label: 'ok' },
+            stale: { cls: 'bg-amber-500/15 text-amber-400 border-amber-800/40',       label: 'stale' },
+            error: { cls: 'bg-red-500/15 text-red-400 border-red-800/40',             label: 'error' },
+            never: { cls: 'bg-zinc-700/30 text-zinc-500 border-zinc-700',             label: 'never fetched' },
+          }[feed.health] ?? { cls: '', label: '' }}
           <div data-testid="feed-item" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-zinc-800/50 group">
             {#if feed.favicon_url}
               <img src={feed.favicon_url} alt="" class="w-4 h-4 rounded" onerror={(e) => e.currentTarget.remove()} />
@@ -306,7 +312,14 @@
               </button>
             {:else}
               <span class="flex-1 text-sm text-zinc-300 truncate">{feed.title || feed.url}</span>
-              <span class="text-xs text-zinc-600 shrink-0">{feed.unread_count} unread</span>
+              {#if feed.health && feed.health !== 'ok'}
+                <span
+                  class="text-[10px] px-1.5 py-0.5 rounded border shrink-0 {healthBadge.cls}"
+                  title={feed.last_error || healthBadge.label}
+                >{healthBadge.label}</span>
+              {:else}
+                <span class="text-xs text-zinc-600 shrink-0">{feed.unread_count} unread</span>
+              {/if}
               <div class="hidden group-hover:flex items-center gap-1">
                 <button onclick={() => (editingFeed = feed.id)} class="btn-ghost p-1">
                   <Edit2 size={12} />

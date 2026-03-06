@@ -99,6 +99,38 @@ Content:
     return response.message.content
 
 
+async def extract_entities(article) -> list[dict]:
+    """Extract named entities from an article using Ollama. Returns list of {name, type} dicts."""
+    content = article.full_content or article.excerpt or ""
+    if not content.strip():
+        return []
+
+    import json, re as _re
+    model = await _get_ollama_model()
+    text = content[:3000]
+    prompt = f"""Extract named entities from this article. Return ONLY a JSON array.
+Each item: {{"name": "...", "type": "PERSON|ORG|PLACE|TOPIC|PRODUCT|EVENT"}}
+Extract up to 10 entities. Return [] if none found.
+
+Title: {article.title}
+Content: {text}"""
+
+    client = AsyncClient(host=app_settings.ollama_base_url)
+    try:
+        response = await client.chat(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        raw = response.message.content
+        match = _re.search(r'\[.*\]', raw, _re.DOTALL)
+        if not match:
+            return []
+        return json.loads(match.group())
+    except Exception as e:
+        logger.warning(f"Entity extraction failed: {e}")
+        return []
+
+
 async def generate_all_digests(target_date: str | None = None, topic_id: int | None = None):
     if target_date is None:
         target_date = date.today().isoformat()
