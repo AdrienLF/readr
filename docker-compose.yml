@@ -16,6 +16,7 @@ services:
       - "8000"
     volumes:
       - ./data:/app/data
+      - ./seeds:/seeds:ro
     environment:
       - OLLAMA_BASE_URL=http://ollama:11434
       - RSSHUB_BASE_URL=http://rsshub:1200
