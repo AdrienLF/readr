@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -10,13 +11,24 @@ from ..models import Feed, Setting
 logger = logging.getLogger(__name__)
 scheduler = AsyncIOScheduler()
 
+# Seconds to wait between Reddit feed fetches to avoid 429s
+REDDIT_FETCH_DELAY = 2.0
+
 
 async def _refresh_all_feeds():
     from .fetcher import fetch_and_store_feed
     async with SessionLocal() as db:
         feeds = (await db.execute(select(Feed))).scalars().all()
+
+    reddit_count = 0
     for feed in feeds:
         try:
+            is_reddit = "reddit.com" in feed.url
+            if is_reddit:
+                # Throttle Reddit fetches to avoid rate limiting
+                if reddit_count > 0:
+                    await asyncio.sleep(REDDIT_FETCH_DELAY)
+                reddit_count += 1
             await fetch_and_store_feed(feed.id)
         except Exception as e:
             logger.error(f"Error fetching feed {feed.id}: {e}")

@@ -221,11 +221,18 @@ async def fetch_and_store_feed(feed_id: int):
         logger.info(f"Fetching feed: {feed.title or feed.url}")
         try:
             if detect_source_type(feed.url) == "reddit":
-                # feedparser's urllib gets 403 from Reddit; fetch via httpx first
+                # feedparser's urllib gets 403 from Reddit; fetch via httpx first.
+                # Retry once on 429 with a backoff.
+                import asyncio as _asyncio
                 async with httpx.AsyncClient(
                     headers=REDDIT_HEADERS, follow_redirects=True, timeout=15
                 ) as client:
                     resp = await client.get(feed.url)
+                    if resp.status_code == 429:
+                        retry_after = int(resp.headers.get("retry-after", 60))
+                        logger.warning(f"Reddit 429 for {feed.url} — retrying in {retry_after}s")
+                        await _asyncio.sleep(retry_after)
+                        resp = await client.get(feed.url)
                     resp.raise_for_status()
                 parsed = feedparser.parse(resp.text)
             else:
