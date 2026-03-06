@@ -159,7 +159,7 @@ async def test_get_comments_reddit(client, mocker):
     with patch(
         "app.routers.articles.fetch_reddit_comments",
         new_callable=AsyncMock,
-        return_value=mock_comments,
+        return_value=(mock_comments, {"score": 42, "num_comments": 1}),
     ):
         res = await client.get(f"/api/articles/{ids['article_id']}/comments")
 
