@@ -1,5 +1,12 @@
 """Unit tests for fetcher.py — pure functions that don't require DB or network."""
 import pytest
+import pytest_asyncio
+from unittest.mock import AsyncMock, MagicMock, patch
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+
+import app.database as db_module
+from app.models import Feed, Article
+from app.services.fetcher import fetch_and_store_feed
 from app.services.fetcher import (
     detect_source_type,
     normalize_reddit_url,
@@ -390,3 +397,111 @@ def test_apply_rules_preview_no_match():
     assert is_muted is False
     assert updates == {}
     assert tag_ids == []
+
+
+# ---------------------------------------------------------------------------
+# Reddit fetch: httpx must be used instead of feedparser's urllib (403 bug)
+# ---------------------------------------------------------------------------
+
+REDDIT_ATOM = """\
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>r/synthesizers</title>
+  <entry>
+    <title>Cool synth post</title>
+    <link href="https://www.reddit.com/r/synthesizers/comments/abc123/cool/"/>
+    <id>https://www.reddit.com/r/synthesizers/comments/abc123/cool/</id>
+    <updated>2026-01-01T10:00:00+00:00</updated>
+    <author><name>testuser</name></author>
+    <content type="html">&lt;p&gt;This is a long enough content string for the excerpt.&lt;/p&gt;</content>
+  </entry>
+</feed>
+"""
+
+
+@pytest_asyncio.fixture
+async def reddit_db(tmp_path):
+    """Isolated DB with a single Reddit feed pre-seeded."""
+    db_url = f"sqlite+aiosqlite:///{tmp_path}/reddit.db"
+    engine = create_async_engine(db_url, echo=False)
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+
+    orig_engine = db_module.engine
+    orig_session = db_module.SessionLocal
+    db_module.engine = engine
+    db_module.SessionLocal = session_factory
+
+    await db_module.init_db()
+
+    async with session_factory() as session:
+        feed = Feed(
+            url="https://www.reddit.com/r/synthesizers.rss",
+            title="r/synthesizers",
+            source_type="reddit",
+        )
+        session.add(feed)
+        await session.commit()
+        await session.refresh(feed)
+        feed_id = feed.id
+
+    yield feed_id, session_factory
+
+    db_module.engine = orig_engine
+    db_module.SessionLocal = orig_session
+    await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_reddit_feed_fetched_via_httpx_not_feedparser_urllib(reddit_db):
+    """
+    Regression test for the Reddit 403 bug.
+
+    feedparser's built-in urllib is blocked by Reddit (HTTP 403).
+    fetch_and_store_feed must fetch Reddit content via httpx and pass the
+    response body to feedparser.parse() — not call feedparser.parse(url).
+
+    The mock makes httpx return a valid Atom feed while feedparser.parse
+    raises if it ever receives a URL (simulating what would happen if the
+    old urllib path were used).
+    """
+    feed_id, session_factory = reddit_db
+
+    import feedparser as _fp
+    _real_parse = _fp.parse  # capture before patching to avoid infinite recursion
+
+    def feedparser_parse(source, **kwargs):
+        # Simulate Reddit 403: fail if called with a URL, succeed on content string
+        if isinstance(source, str) and source.startswith("http"):
+            mock = MagicMock()
+            mock.entries = []
+            mock.feed = {}
+            mock.bozo = True
+            mock.bozo_exception = Exception("HTTP Error 403: Blocked")
+            return mock
+        return _real_parse(source, **kwargs)
+
+    mock_response = MagicMock()
+    mock_response.text = REDDIT_ATOM
+    mock_response.raise_for_status = MagicMock()
+
+    mock_httpx_client = AsyncMock()
+    mock_httpx_client.__aenter__ = AsyncMock(return_value=mock_httpx_client)
+    mock_httpx_client.__aexit__ = AsyncMock(return_value=False)
+    mock_httpx_client.get = AsyncMock(return_value=mock_response)
+
+    with (
+        patch("app.services.fetcher.SessionLocal", new=session_factory),
+        patch("app.services.fetcher.feedparser.parse", side_effect=feedparser_parse),
+        patch("app.services.fetcher.httpx.AsyncClient", return_value=mock_httpx_client),
+        patch("app.services.fetcher.fetch_full_content", new_callable=AsyncMock,
+              return_value=(None, None, None)),
+    ):
+        await fetch_and_store_feed(feed_id)
+
+    async with session_factory() as session:
+        from sqlalchemy import select
+        result = await session.execute(select(Article).where(Article.feed_id == feed_id))
+        articles = result.scalars().all()
+
+    assert len(articles) == 1
+    assert articles[0].title == "Cool synth post"

@@ -180,7 +180,7 @@
   <title>Settings · Readr</title>
 </svelte:head>
 
-<div class="flex-1 overflow-y-auto px-4 py-6">
+<div data-testid="settings-scroll" class="flex-1 overflow-y-auto px-4 py-6">
   <div class="max-w-2xl mx-auto space-y-8">
     <h1 class="text-lg font-bold flex items-center gap-2">
       <Settings size={18} class="text-violet-400" /> Settings
@@ -321,7 +321,7 @@
                 <span class="text-xs text-zinc-600 shrink-0">{feed.unread_count} unread</span>
               {/if}
               <div class="hidden group-hover:flex items-center gap-1">
-                <button onclick={() => (editingFeed = feed.id)} class="btn-ghost p-1">
+                <button onclick={() => (editingFeed = feed.id)} class="btn-ghost p-1" aria-label="Edit title">
                   <Edit2 size={12} />
                 </button>
                 <button onclick={() => deleteFeed(feed.id)} class="btn-danger p-1">

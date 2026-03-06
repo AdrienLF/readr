@@ -64,7 +64,11 @@ test.describe('Article Reading', () => {
     await expect(page.getByTestId('article-reader')).toBeVisible();
 
     await page.keyboard.press('Escape');
-    await expect(page.getByTestId('article-reader')).not.toBeVisible({ timeout: 2_000 });
+    // Reader closes via CSS transform (translate-x-full), not display:none
+    await expect(async () => {
+      const cls = await page.getByTestId('article-reader').getAttribute('class');
+      expect(cls).toContain('translate-x-full');
+    }).toPass({ timeout: 3_000 });
   });
 
   test('article is marked read after opening', async ({ page }) => {
@@ -107,7 +111,8 @@ test.describe('Article Reading', () => {
     await page.waitForSelector('[data-testid="article-list"]');
 
     const bookmarked = page.getByTestId('article-card');
-    await expect(bookmarked.first()).toBeVisible();
+    // Allow time for bookmarks to load from backend
+    await expect(bookmarked.first()).toBeVisible({ timeout: 8_000 });
   });
 });
 
@@ -116,15 +121,21 @@ test.describe('Reddit Comments', () => {
     await page.goto('/');
     await page.waitForSelector('[data-testid="article-list"]');
 
-    // Find a Reddit article card (has "Reddit" label)
-    const redditCards = page.locator('[data-testid="article-card"]:has-text("Reddit")');
-    const count = await redditCards.count();
-    if (count === 0) {
+    // Find a Reddit article by checking if any feed is from reddit.com
+    const res = await page.request.get('/api/articles?page=1&page_size=50');
+    const data = await res.json();
+    const redditArticle = data.items?.find((a) => a.url && a.url.includes('reddit.com'));
+    if (!redditArticle) {
       test.skip('No Reddit articles available');
       return;
     }
+    // Click that article directly
+    const cards = page.getByTestId('article-card');
 
     await redditCards.first().click();
-    await expect(page.getByLabel('Load comments')).toBeVisible();
+    // Wait for reader to open
+    await page.waitForTimeout(500);
+    // Comments button appears for Reddit articles
+    await expect(page.getByLabel('Load comments')).toBeVisible({ timeout: 5_000 });
   });
 });

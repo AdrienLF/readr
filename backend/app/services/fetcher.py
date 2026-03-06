@@ -13,7 +13,7 @@ from .extractor import fetch_full_content, extract_from_html
 logger = logging.getLogger(__name__)
 
 REDDIT_HEADERS = {
-    "User-Agent": "RSS-Reader/1.0 (personal; +https://github.com/local/rss-reader)"
+    "User-Agent": "Mozilla/5.0 (compatible; RSS reader)"
 }
 
 
@@ -219,7 +219,16 @@ async def fetch_and_store_feed(feed_id: int):
 
         logger.info(f"Fetching feed: {feed.title or feed.url}")
         try:
-            parsed = feedparser.parse(feed.url)
+            if detect_source_type(feed.url) == "reddit":
+                # feedparser's urllib gets 403 from Reddit; fetch via httpx first
+                async with httpx.AsyncClient(
+                    headers=REDDIT_HEADERS, follow_redirects=True, timeout=15
+                ) as client:
+                    resp = await client.get(feed.url)
+                    resp.raise_for_status()
+                parsed = feedparser.parse(resp.text)
+            else:
+                parsed = feedparser.parse(feed.url)
             if not parsed.entries and parsed.get("bozo") and not parsed.feed.get("title"):
                 raise Exception(str(parsed.get("bozo_exception", "Empty feed / unreachable")))
         except Exception as e:

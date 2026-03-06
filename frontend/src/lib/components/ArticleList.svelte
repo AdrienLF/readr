@@ -260,7 +260,7 @@
   {/if}
 
   <!-- Scrollable content -->
-  <div class="flex-1 overflow-y-auto min-h-0">
+  <div data-testid="article-list-scroll" class="flex-1 overflow-y-auto min-h-0">
     {#if items.length === 0 && !loading}
       <div class="flex flex-col items-center justify-center h-64 text-zinc-600">
         <p class="text-lg">No articles yet</p>
