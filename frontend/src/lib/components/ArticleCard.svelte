@@ -1,6 +1,6 @@
 <script>
   import { formatDistanceToNow } from 'date-fns';
-  import { Bookmark, BookmarkCheck, BookmarkPlus } from 'lucide-svelte';
+  import { Bookmark, BookmarkCheck, BookmarkPlus, ArrowUp, MessageSquare } from 'lucide-svelte';
   import { app } from '$lib/stores/app.svelte.js';
   import { articles as articlesApi } from '$lib/api.js';
 
@@ -8,6 +8,14 @@
 
   let cardEl = $state(null);
 
+
+  let isReddit = $derived(article.feed_source_type === 'reddit');
+
+  function fmtNum(n) {
+    if (n == null) return '';
+    if (n >= 1000) return (n / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
+    return String(n);
+  }
 
   function timeAgo(date) {
     if (!date) return '';
@@ -88,7 +96,21 @@
         {/if}
       </div>
       <div class="flex items-center justify-between mt-1.5">
-        <span class="text-xs text-zinc-600 truncate">{article.author || ''}</span>
+        <div class="flex items-center gap-3">
+          <span class="text-xs text-zinc-600 truncate">{article.author || ''}</span>
+          {#if isReddit}
+            {#if article.score != null}
+              <span class="flex items-center gap-0.5 text-xs text-orange-400/70">
+                <ArrowUp size={11} />{fmtNum(article.score)}
+              </span>
+            {/if}
+            {#if article.comment_count != null}
+              <span class="flex items-center gap-0.5 text-xs text-zinc-500">
+                <MessageSquare size={10} />{fmtNum(article.comment_count)}
+              </span>
+            {/if}
+          {/if}
+        </div>
         <button
           onclick={toggleBookmark}
           class="text-zinc-600 hover:text-amber-400 transition-colors p-1 rounded shrink-0"
@@ -172,7 +194,19 @@
       <div class="flex-1"></div>
     {/if}
     <div class="flex items-center justify-between mt-auto pt-2">
-      <span class="text-xs text-zinc-600 truncate">{article.author || ''}</span>
+      <div class="flex items-center gap-2">
+        <span class="text-xs text-zinc-600 truncate">{article.author || ''}</span>
+        {#if isReddit && article.score != null}
+          <span class="flex items-center gap-0.5 text-xs text-orange-400/70">
+            <ArrowUp size={11} />{fmtNum(article.score)}
+          </span>
+        {/if}
+        {#if isReddit && article.comment_count != null}
+          <span class="flex items-center gap-0.5 text-xs text-zinc-500">
+            <MessageSquare size={10} />{fmtNum(article.comment_count)}
+          </span>
+        {/if}
+      </div>
       <button
         onclick={toggleBookmark}
         class="text-zinc-600 hover:text-amber-400 transition-colors p-1 rounded shrink-0"
@@ -232,7 +266,19 @@
       {/if}
 
       <div class="flex items-center justify-between mt-auto pt-3">
-        <span class="text-xs text-zinc-600">{article.author || ''}</span>
+        <div class="flex items-center gap-2">
+          <span class="text-xs text-zinc-600">{article.author || ''}</span>
+          {#if isReddit && article.score != null}
+            <span class="flex items-center gap-0.5 text-xs text-orange-400/70">
+              <ArrowUp size={11} />{fmtNum(article.score)}
+            </span>
+          {/if}
+          {#if isReddit && article.comment_count != null}
+            <span class="flex items-center gap-0.5 text-xs text-zinc-500">
+              <MessageSquare size={10} />{fmtNum(article.comment_count)}
+            </span>
+          {/if}
+        </div>
         <button
           onclick={toggleBookmark}
           class="text-zinc-600 hover:text-amber-400 transition-colors p-1 rounded"

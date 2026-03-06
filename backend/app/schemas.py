@@ -171,6 +171,8 @@ class ArticleResponse(BaseModel):
     note: Optional[str] = None
     summary: Optional[str] = None
     priority_score: float = 0.5
+    score: Optional[int] = None
+    comment_count: Optional[int] = None
     user_signal: Optional[int] = None
     tags: list[TagBrief] = []
     highlights: list[HighlightResponse] = []
@@ -194,6 +196,8 @@ class ArticleListItem(BaseModel):
     is_bookmarked: bool
     is_saved: bool = False
     priority_score: float = 0.5
+    score: Optional[int] = None
+    comment_count: Optional[int] = None
     model_config = ConfigDict(from_attributes=True)
 
 

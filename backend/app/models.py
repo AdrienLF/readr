@@ -64,6 +64,8 @@ class Article(Base):
     note: Mapped[Optional[str]] = mapped_column(Text)
     summary: Mapped[Optional[str]] = mapped_column(Text)
     priority_score: Mapped[float] = mapped_column(Float, default=0.5, index=True)
+    score: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    comment_count: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
     feed: Mapped["Feed"] = relationship(back_populates="articles")
     tags: Mapped[list["Tag"]] = relationship(secondary="article_tags", back_populates="articles")

@@ -219,8 +219,11 @@ async def fetch_and_store_feed(feed_id: int):
         feed_priority = (likes / total_signals) if total_signals > 0 else 0.5
 
         logger.info(f"Fetching feed: {feed.title or feed.url}")
+        is_reddit = detect_source_type(feed.url) == "reddit"
+        reddit_meta = {}  # url -> {score, num_comments} for reddit posts
+
         try:
-            if detect_source_type(feed.url) == "reddit":
+            if is_reddit:
                 # feedparser's urllib gets 403 from Reddit; fetch via httpx first.
                 # Retry once on 429 with a backoff.
                 import asyncio as _asyncio
@@ -235,6 +238,25 @@ async def fetch_and_store_feed(feed_id: int):
                         resp = await client.get(feed.url)
                     resp.raise_for_status()
                 parsed = feedparser.parse(resp.text)
+
+                # Also fetch JSON endpoint to get score and comment counts
+                json_url = feed.url.replace(".rss", ".json") + "?limit=50&raw_json=1"
+                try:
+                    json_resp = await client.get(json_url)
+                    if json_resp.status_code == 200:
+                        json_data = json_resp.json()
+                        children = json_data.get("data", {}).get("children", [])
+                        for child in children:
+                            if child.get("kind") != "t3":
+                                continue
+                            d = child["data"]
+                            permalink = f"https://www.reddit.com{d.get('permalink', '')}"
+                            reddit_meta[permalink] = {
+                                "score": d.get("score", 0),
+                                "num_comments": d.get("num_comments", 0),
+                            }
+                except Exception as e:
+                    logger.debug(f"Reddit JSON fetch failed (non-fatal): {e}")
             else:
                 parsed = feedparser.parse(feed.url)
             if not parsed.entries and parsed.get("bozo") and not parsed.feed.get("title"):
@@ -275,7 +297,7 @@ async def fetch_and_store_feed(feed_id: int):
             full_content = None
             excerpt = rss_excerpt
 
-            if feed.source_type == "reddit":
+            if is_reddit:
                 if rss_content and len(rss_content) > 100:
                     full_content = rss_content
                     if not excerpt:
@@ -295,6 +317,9 @@ async def fetch_and_store_feed(feed_id: int):
                 if not image_url:
                     image_url = extracted_image
 
+            # Reddit metadata (score, comment_count)
+            r_meta = reddit_meta.get(url, {})
+
             # Build article in-memory first so rules can inspect it
             article = Article(
                 feed_id=feed_id,
@@ -307,6 +332,8 @@ async def fetch_and_store_feed(feed_id: int):
                 author=author,
                 published_at=published_at,
                 priority_score=feed_priority,
+                score=r_meta.get("score"),
+                comment_count=r_meta.get("num_comments"),
             )
 
             # Apply rules before persisting
@@ -384,29 +411,40 @@ def _get_rss_image(entry) -> str | None:
     return None
 
 
-async def fetch_reddit_comments(post_url: str) -> list[dict]:
-    match = re.search(r"reddit\.com/r/[^/]+/comments/([a-z0-9]+)", post_url)
+async def fetch_reddit_comments(post_url: str) -> tuple[list[dict], dict]:
+    """Fetch Reddit comments and post metadata. Returns (comments, post_meta)."""
+    match = re.search(r"(reddit\.com/r/[^/]+/comments/[a-z0-9]+[^?#]*)", post_url)
     if not match:
-        return []
+        return [], {}
 
-    post_id = match.group(1)
-    api_url = f"https://www.reddit.com/comments/{post_id}.json?limit=100&sort=top&depth=4"
+    permalink = match.group(1).rstrip("/")
+    api_url = f"https://www.{permalink}.json?limit=100&sort=top&depth=4"
 
     try:
         async with httpx.AsyncClient(timeout=15, follow_redirects=True, headers=REDDIT_HEADERS) as client:
             response = await client.get(api_url)
             if response.status_code != 200:
-                return []
+                return [], {}
             data = response.json()
     except Exception as e:
         logger.warning(f"Reddit comments fetch failed: {e}")
-        return []
+        return [], {}
+
+    post_meta = {}
+    try:
+        post_data = data[0]["data"]["children"][0]["data"]
+        post_meta = {
+            "score": post_data.get("score", 0),
+            "num_comments": post_data.get("num_comments", 0),
+        }
+    except (IndexError, KeyError, TypeError):
+        pass
 
     try:
         comments_listing = data[1]["data"]["children"]
-        return _parse_comment_tree(comments_listing, depth=0)
+        return _parse_comment_tree(comments_listing, depth=0), post_meta
     except (IndexError, KeyError, TypeError):
-        return []
+        return [], post_meta
 
 
 def _parse_comment_tree(children: list, depth: int) -> list[dict]:

@@ -203,8 +203,21 @@ async def get_comments(article_id: int, db: AsyncSession = Depends(get_db)):
     if not article.feed or article.feed.source_type != "reddit":
         raise HTTPException(400, "Comments only available for Reddit articles")
 
-    comments = await fetch_reddit_comments(article.url)
-    return {"comments": comments}
+    comments, post_meta = await fetch_reddit_comments(article.url)
+
+    # Update article with fresh Reddit metadata
+    if post_meta:
+        if post_meta.get("score") is not None:
+            article.score = post_meta["score"]
+        if post_meta.get("num_comments") is not None:
+            article.comment_count = post_meta["num_comments"]
+        await db.commit()
+
+    return {
+        "comments": comments,
+        "score": article.score,
+        "comment_count": article.comment_count,
+    }
 
 
 class NoteUpdate(BaseModel):

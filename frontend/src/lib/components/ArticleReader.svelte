@@ -5,7 +5,7 @@
   import {
     X, ExternalLink, Bookmark, BookmarkCheck, BookmarkPlus, MessageSquare,
     Zap, Tag, StickyNote, Globe, ThumbsUp, ThumbsDown, Highlighter, Cpu,
-    ChevronLeft, ChevronRight,
+    ChevronLeft, ChevronRight, ArrowUp,
   } from 'lucide-svelte';
   import { app } from '$lib/stores/app.svelte.js';
   import { articles as articlesApi, tags as tagsApi } from '$lib/api.js';
@@ -89,6 +89,10 @@
     try {
       const data = await articlesApi.getComments(article.id);
       comments = data.comments;
+      // Update score/comment_count from fresh Reddit data
+      if (data.score != null || data.comment_count != null) {
+        article = { ...article, score: data.score ?? article.score, comment_count: data.comment_count ?? article.comment_count };
+      }
       commentsOpen = true;
     } finally {
       commentsLoading = false;
@@ -209,6 +213,21 @@
     } catch {
       return '';
     }
+  }
+
+  let isReddit = $derived(article?.feed_source_type === 'reddit');
+
+  // Auto-load comments for Reddit posts
+  $effect(() => {
+    if (article && isReddit && !commentsOpen && comments.length === 0 && !commentsLoading) {
+      loadComments();
+    }
+  });
+
+  function fmtNum(n) {
+    if (n == null) return '';
+    if (n >= 1000) return (n / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
+    return String(n);
   }
 
   let articleTagIds = $derived(new Set((article?.tags || []).map((t) => t.id)));
@@ -440,7 +459,7 @@
           {/if}
         </div>
 
-        {#if article.feed_source_type === 'reddit'}
+        {#if isReddit}
           <button
             onclick={loadComments}
             class="btn-ghost p-2 gap-1 text-xs {commentsOpen ? 'text-orange-400' : ''}"
@@ -448,7 +467,7 @@
             aria-label="Load comments"
           >
             <MessageSquare size={18} />
-            {commentsLoading ? '…' : 'Comments'}
+            {commentsLoading ? '…' : article.comment_count != null ? fmtNum(article.comment_count) : 'Comments'}
           </button>
         {/if}
 
@@ -509,7 +528,7 @@
         <article class="px-6 py-8 max-w-2xl mx-auto">
           <!-- Meta -->
           <div class="flex flex-wrap items-center gap-2 text-xs text-zinc-500 mb-4">
-            {#if article.feed_source_type === 'reddit'}
+            {#if isReddit}
               <span class="text-orange-400 font-semibold uppercase tracking-wide">Reddit</span>
               <span class="text-zinc-700">·</span>
             {/if}
@@ -521,6 +540,17 @@
             {#if article.published_at}
               <span class="text-zinc-700">·</span>
               <span>{formatDate(article.published_at)}</span>
+            {/if}
+            {#if isReddit && article.score != null}
+              <span class="text-zinc-700">·</span>
+              <span class="flex items-center gap-0.5 text-orange-400/80">
+                <ArrowUp size={12} />{fmtNum(article.score)}
+              </span>
+            {/if}
+            {#if isReddit && article.comment_count != null}
+              <span class="flex items-center gap-0.5 text-zinc-400">
+                <MessageSquare size={11} />{fmtNum(article.comment_count)}
+              </span>
             {/if}
           </div>
 
@@ -682,10 +712,21 @@
           <!-- Comments -->
           {#if commentsOpen && comments.length > 0}
             <div class="mt-10 pt-8 border-t border-zinc-800">
-              <h2 class="text-sm font-semibold text-zinc-400 mb-4 uppercase tracking-wide">
-                Comments ({comments.length})
-              </h2>
+              <div class="flex items-center gap-3 mb-4">
+                <h2 class="text-sm font-semibold text-zinc-400 uppercase tracking-wide">
+                  Comments ({comments.length})
+                </h2>
+                {#if isReddit && article.score != null}
+                  <span class="flex items-center gap-1 text-xs text-orange-400/80">
+                    <ArrowUp size={12} />{fmtNum(article.score)} points
+                  </span>
+                {/if}
+              </div>
               <CommentThread {comments} />
+            </div>
+          {:else if commentsOpen && commentsLoading}
+            <div class="mt-10 pt-8 border-t border-zinc-800">
+              <p class="text-sm text-zinc-500 animate-pulse">Loading comments…</p>
             </div>
           {/if}
         </article>
