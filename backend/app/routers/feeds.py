@@ -10,8 +10,13 @@ from sqlalchemy.orm import selectinload
 
 from ..database import get_db
 from ..models import Feed, Topic, Article
-from ..schemas import FeedCreate, FeedUpdate, FeedResponse, DiscoveredFeed
+from ..schemas import (
+    FeedCreate, FeedUpdate, FeedResponse, DiscoveredFeed,
+    BulkClassifyRequest, BulkClassifyResponse, ClassifiedFeed,
+    BulkImportRequest,
+)
 from ..services.fetcher import discover_feed, discover_feeds_from_url, fetch_and_store_feed
+from ..services.llm import classify_feeds_into_topics
 
 router = APIRouter()
 
@@ -124,6 +129,125 @@ async def bulk_add_feeds(
         background_tasks.add_task(fetch_and_store_feed, feed_id)
 
     return {"added": added, "skipped": skipped}
+
+
+@router.post("/bulk-classify", response_model=BulkClassifyResponse)
+async def bulk_classify_feeds(
+    payload: BulkClassifyRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Discover feed metadata and use LLM to classify them into topics."""
+    import asyncio
+
+    # Find already-existing URLs
+    existing_result = await db.execute(select(Feed.url))
+    existing_urls = {row[0] for row in existing_result.all()}
+
+    # Discover metadata for each URL (with error handling)
+    async def safe_discover(url: str) -> dict:
+        try:
+            return await discover_feed(url)
+        except Exception:
+            source_type = "reddit" if "reddit.com" in url else "rss"
+            return {"url": url, "title": url, "description": None, "source_type": source_type, "favicon_url": None}
+
+    discovered = await asyncio.gather(*[safe_discover(u) for u in payload.urls])
+
+    # Get existing topics
+    topics_result = await db.execute(select(Topic))
+    existing_topics = [{"name": t.name, "color": t.color} for t in topics_result.scalars().all()]
+
+    # Ask LLM to classify
+    feed_data = [{"url": d["url"], "title": d.get("title"), "description": d.get("description")} for d in discovered]
+    classifications = await classify_feeds_into_topics(feed_data, existing_topics)
+
+    # Build lookup from LLM results
+    classified_by_url = {c["url"]: c for c in classifications}
+    existing_topic_names = {t["name"].lower(): t for t in existing_topics}
+
+    result_feeds = []
+    for d in discovered:
+        c = classified_by_url.get(d["url"])
+        if c:
+            topic_name = c["topic_name"]
+            # Check if topic truly exists (case-insensitive)
+            existing_match = existing_topic_names.get(topic_name.lower())
+            if existing_match:
+                is_new = False
+                color = existing_match["color"]
+                topic_name = existing_match["name"]  # preserve original casing
+            else:
+                is_new = c.get("is_new_topic", True)
+                color = c.get("topic_color", "#6366f1")
+        else:
+            topic_name = "Uncategorized"
+            is_new = not any(t["name"].lower() == "uncategorized" for t in existing_topics)
+            color = "#71717a"
+
+        result_feeds.append(ClassifiedFeed(
+            url=d["url"],
+            title=d.get("title"),
+            description=d.get("description"),
+            topic_name=topic_name,
+            is_new_topic=is_new,
+            topic_color=color,
+            already_exists=d["url"] in existing_urls,
+        ))
+
+    return BulkClassifyResponse(feeds=result_feeds)
+
+
+@router.post("/bulk-import", status_code=201)
+async def bulk_import_feeds(
+    payload: BulkImportRequest,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db),
+):
+    """Import feeds with topic assignments. Creates new topics as needed."""
+    # Find existing URLs
+    existing_result = await db.execute(select(Feed.url))
+    existing_urls = {row[0] for row in existing_result.all()}
+
+    # Load existing topics by name (case-insensitive)
+    topics_result = await db.execute(select(Topic))
+    topic_by_name = {t.name.lower(): t for t in topics_result.scalars().all()}
+
+    added = 0
+    skipped = 0
+    topics_created = 0
+    new_feeds = []
+
+    for item in payload.feeds:
+        if item.url in existing_urls:
+            skipped += 1
+            continue
+
+        # Resolve or create topic
+        topic = topic_by_name.get(item.topic_name.lower())
+        if not topic:
+            topic = Topic(name=item.topic_name, color=item.topic_color)
+            db.add(topic)
+            await db.flush()  # get the ID
+            topic_by_name[item.topic_name.lower()] = topic
+            topics_created += 1
+
+        source_type = "reddit" if "reddit.com" in item.url else "rss"
+        feed = Feed(url=item.url, title=item.url, source_type=source_type)
+        feed.topics = [topic]
+        db.add(feed)
+        new_feeds.append(feed)
+        existing_urls.add(item.url)
+        added += 1
+
+    await db.flush()  # assign IDs to new feeds
+    new_feed_ids = [f.id for f in new_feeds]
+    await db.commit()
+
+    # Queue article fetches for newly added feeds only
+    for feed_id in new_feed_ids:
+        background_tasks.add_task(fetch_and_store_feed, feed_id)
+
+    return {"added": added, "skipped": skipped, "topics_created": topics_created}
 
 
 @router.get("/{feed_id}", response_model=FeedResponse)

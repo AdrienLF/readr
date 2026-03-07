@@ -8,11 +8,22 @@ A self-hosted, single-user RSS reader with full-text article fetching, Reddit co
 
 - **Full-text reading** — fetches and stores complete article content server-side via trafilatura
 - **Topic organization** — organize feeds into topics (many-to-many); filter your reading by topic
-- **Reddit first-class** — Reddit posts include live threaded comment trees
+- **Bulk feed import with AI classification** — paste a list of URLs (or any text containing URLs) and let the local LLM auto-classify them into topics, with a review step before import
+- **Inline topic creation** — create new topics on the fly when adding a feed, no separate modal needed
+- **Reddit first-class** — Reddit posts include live threaded comment trees, upvotes, and comment counts
 - **Daily AI digest** — local LLM (Ollama + Qwen3:8b) summarizes the day's stories per topic at a configurable time
+- **Article summarization** — on-demand per-article summaries via local LLM, cached after first generation
+- **Named entity extraction** — extract people, organizations, places, and topics from articles; view trending entities
 - **Read tracking & bookmarks** — per-article state, persisted in SQLite
+- **Save for later** — separate saved-articles list, distinct from bookmarks
+- **Tags & automation rules** — color-coded tags and fetch-time rules (auto-bookmark, auto-tag, auto-mute)
+- **Mute filters** — drop articles matching patterns (plain text or regex) at fetch time, globally or per-feed
+- **Smart searches** — saved search queries with automatic article matching
 - **Full-text search** — SQLite FTS5, BM25 ranking, no external service needed
-- **Mobile-friendly** — responsive UI, accessible over Tailscale from any device
+- **OPML import/export** — standard feed list exchange; OPML folders become topics on import
+- **Article highlights & notes** — highlight text passages and attach private notes to any article
+- **Priority scoring** — articles scored based on thumbs-up/down signals per feed
+- **Mobile-friendly** — responsive UI with bottom navigation, accessible over Tailscale from any device
 - **Self-contained** — runs entirely in Docker Compose; all data stays local
 
 ## Stack

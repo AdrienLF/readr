@@ -7,6 +7,7 @@
   const sections = [
     { id: 'getting-started', label: 'Getting Started' },
     { id: 'adding-feeds',    label: 'Adding Feeds' },
+    { id: 'bulk-import',     label: 'Bulk Import' },
     { id: 'feed-formats',    label: 'Feed URL Formats' },
     { id: 'keyboard',        label: 'Keyboard Shortcuts' },
     { id: 'organization',    label: 'Topics & Organization' },
@@ -90,7 +91,7 @@
         </h2>
         <div class="space-y-3 text-sm text-zinc-400 leading-relaxed">
           <p>Paste any URL into the <strong class="text-zinc-300">Add Feed</strong> dialog. Readr will auto-detect whether it's a direct RSS/Atom feed or a regular website (in which case it scans the page for a feed link).</p>
-          <p>You can also assign one or more Topics at the time of adding a feed.</p>
+          <p>You can assign one or more Topics at the time of adding a feed, or create a new topic inline by typing a name and pressing Enter.</p>
           <div class="bg-zinc-900/60 border border-zinc-800 rounded-lg p-4 space-y-1.5">
             <p class="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-2">What's supported</p>
             <div class="grid grid-cols-2 gap-1 text-xs">
@@ -102,6 +103,23 @@
               <span class="text-zinc-300">✓ Any site with a feed link</span>
             </div>
           </div>
+        </div>
+      </section>
+
+      <!-- Bulk Import -->
+      <section id="bulk-import">
+        <h2 class="text-base font-semibold text-zinc-200 mb-4 flex items-center gap-2">
+          <Zap size={16} class="text-violet-400" /> Bulk Import
+        </h2>
+        <div class="space-y-3 text-sm text-zinc-400 leading-relaxed">
+          <p>Click the <strong class="text-zinc-300">upload icon</strong> next to the Add Feed button in the sidebar to open the Bulk Import modal.</p>
+          <ol class="list-decimal list-inside space-y-2 ml-1">
+            <li>Paste a list of feed URLs — or any text containing URLs (e.g. a ChatGPT recommendation). URLs are extracted automatically.</li>
+            <li>Click <strong class="text-zinc-300">Classify with AI</strong>. The local LLM discovers each feed's metadata and assigns it to a topic, preferring existing topics and creating new ones when needed.</li>
+            <li>Review the proposed classification. You can reassign feeds to different topics using the dropdown, or remove feeds you don't want.</li>
+            <li>Click <strong class="text-zinc-300">Import</strong> to create all feeds and topics at once. Articles are fetched in the background.</li>
+          </ol>
+          <p>Feeds that already exist in your library are shown as <em class="text-zinc-500">(exists)</em> and skipped during import.</p>
         </div>
       </section>
 
@@ -159,8 +177,8 @@
         <div class="space-y-3 text-sm text-zinc-400 leading-relaxed">
           <p>Topics are colored groups that feeds can belong to. A feed can belong to multiple topics (many-to-many).</p>
           <ul class="list-disc list-inside space-y-1.5 ml-1">
-            <li>Create topics from the <strong class="text-zinc-300">+</strong> button in the sidebar.</li>
-            <li>Assign topics when adding a feed, or update them later in Settings → Feeds.</li>
+            <li>Create topics from the <strong class="text-zinc-300">+</strong> button in the sidebar, or inline when adding a feed.</li>
+            <li>Assign topics when adding a feed, or update them later in Settings → Feeds. The Bulk Import feature can also auto-create topics via AI classification.</li>
             <li>Click a topic in the sidebar to see all articles from its feeds.</li>
             <li>Click the chevron <strong class="text-zinc-300">›</strong> next to a topic to expand it and browse individual feeds.</li>
           </ul>

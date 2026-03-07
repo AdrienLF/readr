@@ -1,5 +1,5 @@
 <script>
-  import { Home, Bookmark, BookmarkCheck, Search, Zap, Settings, Plus, Rss, RefreshCw, ChevronRight, BookOpen, TrendingUp, Sparkles, Trash2 } from 'lucide-svelte';
+  import { Home, Bookmark, BookmarkCheck, Search, Zap, Settings, Plus, Rss, RefreshCw, ChevronRight, BookOpen, TrendingUp, Sparkles, Trash2, Upload } from 'lucide-svelte';
   import { savedSearches as savedSearchesApi } from '$lib/api.js';
   import { app } from '$lib/stores/app.svelte.js';
   import { feeds as feedsApi, entities as entitiesApi } from '$lib/api.js';
@@ -343,6 +343,14 @@
       class="btn-primary flex-1 justify-center text-xs py-1.5"
     >
       <Plus size={13} /> Add Feed
+    </button>
+    <button
+      onclick={() => (app.bulkAddOpen = true)}
+      class="btn-ghost p-2"
+      aria-label="Bulk add feeds"
+      title="Bulk add feeds"
+    >
+      <Upload size={14} />
     </button>
     <button
       onclick={refreshAll}

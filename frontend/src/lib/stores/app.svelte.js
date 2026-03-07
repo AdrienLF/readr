@@ -14,6 +14,7 @@ class AppState {
   // UI
   sidebarOpen = $state(true);
   addFeedOpen = $state(false);
+  bulkAddOpen = $state(false);
   addTopicOpen = $state(false);
   addSmartSearchOpen = $state(false);
   shortcutsVisible = $state(false);

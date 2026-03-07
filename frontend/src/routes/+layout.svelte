@@ -6,6 +6,7 @@
   import Sidebar from '$lib/components/Sidebar.svelte';
   import ArticleReader from '$lib/components/ArticleReader.svelte';
   import AddFeedModal from '$lib/components/AddFeedModal.svelte';
+  import BulkAddModal from '$lib/components/BulkAddModal.svelte';
   import TopicModal from '$lib/components/TopicModal.svelte';
   import SmartSearchModal from '$lib/components/SmartSearchModal.svelte';
   import MobileNav from '$lib/components/MobileNav.svelte';
@@ -91,6 +92,7 @@
 
   <!-- Modals -->
   <AddFeedModal />
+  <BulkAddModal />
   <TopicModal />
   <SmartSearchModal />
 

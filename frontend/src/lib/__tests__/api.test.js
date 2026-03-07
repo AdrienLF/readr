@@ -68,6 +68,23 @@ describe('feeds API', () => {
     const { feeds } = await import('$lib/api.js');
     await expect(feeds.add('duplicate-url')).rejects.toThrow('Feed URL already exists');
   });
+
+  it('throws readable message on 422 validation error (array detail)', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 422,
+      json: () => Promise.resolve({
+        detail: [
+          { loc: ['body', 'feeds', 0, 'url'], msg: 'Field required', type: 'missing' },
+        ],
+      }),
+    });
+    const { feeds } = await import('$lib/api.js');
+    const err = await feeds.add('bad').catch((e) => e);
+    expect(err.message).not.toContain('[object Object]');
+    expect(typeof err.message).toBe('string');
+    expect(err.message.length).toBeGreaterThan(0);
+  });
 });
 
 describe('articles API', () => {
@@ -115,6 +132,26 @@ describe('articles API', () => {
     const { articles } = await import('$lib/api.js');
     await articles.toggleBookmark(1);
     expect(fetch).toHaveBeenCalledWith('/api/articles/1/bookmark', expect.anything());
+  });
+});
+
+describe('feeds bulk API', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('feeds.bulkImport() sends feeds array directly, not double-wrapped', async () => {
+    global.fetch = mockFetch(201, { added: 2, skipped: 0, topics_created: 1 });
+    const { feeds } = await import('$lib/api.js');
+    const payload = {
+      feeds: [
+        { url: 'https://a.com/feed', topic_name: 'Tech', topic_color: '#3b82f6' },
+        { url: 'https://b.com/feed', topic_name: 'Tech', topic_color: '#3b82f6' },
+      ],
+    };
+    await feeds.bulkImport(payload);
+    const sentBody = JSON.parse(fetch.mock.calls[0][1].body);
+    expect(sentBody).toHaveProperty('feeds');
+    expect(Array.isArray(sentBody.feeds)).toBe(true);
+    expect(sentBody.feeds[0]).toHaveProperty('url', 'https://a.com/feed');
   });
 });
 

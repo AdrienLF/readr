@@ -8,7 +8,11 @@ async function req(method, path, body) {
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
-    throw new Error(err.detail || `HTTP ${res.status}`);
+    const detail = err.detail;
+    const message = Array.isArray(detail)
+      ? detail.map((e) => e.msg || JSON.stringify(e)).join('; ')
+      : detail || `HTTP ${res.status}`;
+    throw new Error(message);
   }
   if (res.status === 204) return null;
   return res.json();
@@ -36,6 +40,8 @@ export const feeds = {
     return fetch('/api/feeds/opml', { method: 'POST', body: form }).then((r) => r.json());
   },
   discover: (url) => get(`/feeds/discover?url=${encodeURIComponent(url)}`),
+  bulkClassify: (urls) => post('/feeds/bulk-classify', { urls }),
+  bulkImport: (data) => post('/feeds/bulk-import', data),
 };
 
 // Mute filters

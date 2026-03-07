@@ -266,6 +266,36 @@ class MuteFilterResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+# --- Bulk Classify ---
+
+class BulkClassifyRequest(BaseModel):
+    urls: list[str]
+
+
+class ClassifiedFeed(BaseModel):
+    url: str
+    title: Optional[str] = None
+    description: Optional[str] = None
+    topic_name: str
+    is_new_topic: bool
+    topic_color: str = "#6366f1"
+    already_exists: bool = False
+
+
+class BulkClassifyResponse(BaseModel):
+    feeds: list[ClassifiedFeed]
+
+
+class BulkImportFeed(BaseModel):
+    url: str
+    topic_name: str
+    topic_color: str = "#6366f1"
+
+
+class BulkImportRequest(BaseModel):
+    feeds: list[BulkImportFeed]
+
+
 # --- Feed Discovery ---
 
 class DiscoveredFeed(BaseModel):

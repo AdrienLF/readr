@@ -158,6 +158,83 @@ Content: {text}"""
         return []
 
 
+async def classify_feeds_into_topics(
+    feeds: list[dict],
+    existing_topics: list[dict],
+) -> list[dict]:
+    """Ask the LLM to classify feeds into topics.
+
+    Args:
+        feeds: list of {url, title, description}
+        existing_topics: list of {name, color} for topics that already exist
+
+    Returns:
+        list of {url, topic_name, is_new_topic, topic_color}
+    """
+    import json
+    import re as _re
+
+    existing_names = [t["name"] for t in existing_topics]
+    existing_section = ""
+    if existing_names:
+        existing_section = f"""Existing topics (prefer these when a feed fits):
+{json.dumps(existing_topics, indent=2)}
+
+"""
+
+    feed_lines = ""
+    for f in feeds:
+        title = f.get("title") or f["url"]
+        desc = (f.get("description") or "")[:200]
+        feed_lines += f"- URL: {f['url']}\n  Title: {title}\n"
+        if desc:
+            feed_lines += f"  Description: {desc}\n"
+
+    model = await _get_ollama_model()
+    prompt = f"""You are organizing RSS feeds into topics/categories.
+
+{existing_section}Feeds to classify:
+{feed_lines}
+
+Rules:
+- Assign each feed to exactly ONE topic
+- Prefer existing topics when a feed reasonably fits
+- Create new topics only when no existing topic is a good match
+- For new topics, choose a short descriptive name (1-3 words) and a hex color
+- Return ONLY a JSON array, no other text
+
+Each item in the array:
+{{"url": "...", "topic_name": "...", "is_new_topic": true/false, "topic_color": "#hexcolor"}}
+
+For existing topics, use their exact name and color. For new topics, pick a distinctive hex color that differs from existing ones."""
+
+    client = AsyncClient(host=app_settings.ollama_base_url)
+    try:
+        response = await client.chat(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        raw = response.message.content
+        match = _re.search(r'\[.*\]', raw, _re.DOTALL)
+        if not match:
+            logger.warning(f"LLM classification returned no JSON array: {raw[:200]}")
+            return []
+        result = json.loads(match.group())
+        # Validate and normalize
+        classified = []
+        for item in result:
+            classified.append({
+                "url": item.get("url", ""),
+                "topic_name": item.get("topic_name", "Uncategorized"),
+                "is_new_topic": bool(item.get("is_new_topic", True)),
+                "topic_color": item.get("topic_color", "#6366f1"),
+            })
+        return classified
+    except Exception as e:
+        logger.warning(f"Feed classification failed: {e}")
+        return []
+
+
 async def generate_all_digests(target_date: str | None = None, topic_id: int | None = None, force: bool = False):
     if target_date is None:
         target_date = date.today().isoformat()

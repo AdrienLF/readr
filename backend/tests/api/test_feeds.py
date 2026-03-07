@@ -134,6 +134,81 @@ async def test_refresh_all_feeds(client):
     assert "1" in res.json()["message"]
 
 
+async def test_bulk_classify_feeds(client):
+    """Bulk classify should discover feeds and return LLM topic assignments."""
+    mock_discover = AsyncMock(side_effect=lambda url: {
+        "url": url,
+        "title": f"Title for {url}",
+        "description": "A feed",
+        "source_type": "rss",
+        "favicon_url": None,
+    })
+    mock_classify = AsyncMock(return_value=[
+        {"url": "https://a.com/feed", "topic_name": "Tech", "is_new_topic": True, "topic_color": "#3b82f6"},
+        {"url": "https://b.com/feed", "topic_name": "Tech", "is_new_topic": True, "topic_color": "#3b82f6"},
+    ])
+
+    with (
+        patch("app.routers.feeds.discover_feed", mock_discover),
+        patch("app.routers.feeds.classify_feeds_into_topics", mock_classify),
+    ):
+        res = await client.post("/api/feeds/bulk-classify", json={
+            "urls": ["https://a.com/feed", "https://b.com/feed"],
+        })
+
+    assert res.status_code == 200
+    data = res.json()
+    assert len(data["feeds"]) == 2
+    assert data["feeds"][0]["topic_name"] == "Tech"
+    assert data["feeds"][0]["title"] == "Title for https://a.com/feed"
+
+
+async def test_bulk_import_creates_topics_and_feeds(client):
+    """Bulk import should create new topics and assign feeds to them."""
+    res = await client.post("/api/feeds/bulk-import", json={
+        "feeds": [
+            {"url": "https://a.com/feed", "topic_name": "Tech", "topic_color": "#3b82f6"},
+            {"url": "https://b.com/feed", "topic_name": "Tech", "topic_color": "#3b82f6"},
+            {"url": "https://c.com/feed", "topic_name": "Art", "topic_color": "#ec4899"},
+        ],
+    })
+
+    assert res.status_code == 201
+    data = res.json()
+    assert data["added"] == 3
+    assert data["topics_created"] == 2
+
+    # Verify feeds exist with topics
+    feeds_res = await client.get("/api/feeds")
+    feeds = feeds_res.json()
+    assert len(feeds) == 3
+    tech_feeds = [f for f in feeds if any(t["name"] == "Tech" for t in f["topics"])]
+    assert len(tech_feeds) == 2
+
+
+async def test_bulk_import_queues_fetch_only_for_new_feeds(client):
+    """Bulk import should queue fetches for only the newly added feeds, not old ones."""
+    from app.routers.feeds import fetch_and_store_feed
+
+    # Pre-create an old feed via the old bulk endpoint (title == url pattern)
+    await client.post("/api/feeds/bulk", json=[{"url": "https://old.com/feed"}])
+    fetch_and_store_feed.reset_mock()
+
+    # Now do a bulk import of new feeds
+    res = await client.post("/api/feeds/bulk-import", json={
+        "feeds": [
+            {"url": "https://x.com/feed", "topic_name": "Tech", "topic_color": "#3b82f6"},
+            {"url": "https://y.com/feed", "topic_name": "Art", "topic_color": "#ec4899"},
+        ],
+    })
+    assert res.status_code == 201
+    assert res.json()["added"] == 2
+
+    # Should have queued exactly 2 fetches (not 3 — old.com should NOT be re-queued)
+    feed_ids_fetched = [c.args[0] for c in fetch_and_store_feed.call_args_list]
+    assert len(feed_ids_fetched) == 2
+
+
 async def test_list_feeds_after_adding(client):
     feeds_info = [
         {**MOCK_FEED_INFO, "url": f"https://example.com/feed{i}.rss", "title": f"Feed {i}"}
