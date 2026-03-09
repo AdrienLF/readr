@@ -3,6 +3,84 @@
   import { savedSearches as savedSearchesApi } from '$lib/api.js';
   import { app } from '$lib/stores/app.svelte.js';
   import { feeds as feedsApi, entities as entitiesApi } from '$lib/api.js';
+  import FeedContextMenu from './FeedContextMenu.svelte';
+
+  // Context menu
+  let ctxFeed = $state(null);
+  let ctxX = $state(0);
+  let ctxY = $state(0);
+
+  function openContextMenu(feed, e) {
+    e.preventDefault();
+    ctxX = e.clientX;
+    ctxY = e.clientY;
+    ctxFeed = feed;
+  }
+
+  // Drag and drop
+  let dragFeedId = $state(null);
+  let dropTargetTopicId = $state(null);
+
+  function onDragStart(feed, e) {
+    dragFeedId = feed.id;
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', feed.id.toString());
+  }
+
+  function onDragEnd() {
+    dragFeedId = null;
+    dropTargetTopicId = null;
+  }
+
+  function onTopicDragOver(topicId, e) {
+    if (!dragFeedId) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    dropTargetTopicId = topicId;
+  }
+
+  function onTopicDragLeave(topicId, e) {
+    if (dropTargetTopicId === topicId) dropTargetTopicId = null;
+  }
+
+  async function onTopicDrop(topicId, e) {
+    e.preventDefault();
+    dropTargetTopicId = null;
+    if (!dragFeedId) return;
+    const feed = app.feeds.find((f) => f.id === dragFeedId);
+    if (!feed) return;
+    dragFeedId = null;
+
+    const currentTopicIds = feed.topics?.map((t) => t.id) ?? [];
+    if (currentTopicIds.includes(topicId)) return; // already in topic
+    await feedsApi.update(feed.id, { topic_ids: [...currentTopicIds, topicId] });
+    await Promise.all([app.loadFeeds(), app.loadTopics()]);
+  }
+
+  // Drop on "uncategorized" area removes all topics
+  function onUncatDragOver(e) {
+    if (!dragFeedId) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    dropTargetTopicId = 'uncat';
+  }
+
+  function onUncatDragLeave() {
+    if (dropTargetTopicId === 'uncat') dropTargetTopicId = null;
+  }
+
+  async function onUncatDrop(e) {
+    e.preventDefault();
+    dropTargetTopicId = null;
+    if (!dragFeedId) return;
+    const feed = app.feeds.find((f) => f.id === dragFeedId);
+    if (!feed) return;
+    dragFeedId = null;
+
+    if (!feed.topics || feed.topics.length === 0) return;
+    await feedsApi.update(feed.id, { topic_ids: [] });
+    await Promise.all([app.loadFeeds(), app.loadTopics()]);
+  }
 
   async function deleteSearch(id, e) {
     e.stopPropagation();
@@ -196,14 +274,19 @@
       {@const isExpanded = expanded.has(topic.id)}
       {@const topicUnread = unreadForTopic(topic.id)}
 
-      <!-- Topic row -->
+      <!-- Topic row (drop target) -->
       <div class="mx-2">
         <button
           onclick={() => app.selectTopic(topic.id)}
+          ondragover={(e) => onTopicDragOver(topic.id, e)}
+          ondragleave={(e) => onTopicDragLeave(topic.id, e)}
+          ondrop={(e) => onTopicDrop(topic.id, e)}
           class="group w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm transition-colors
-                 {app.selectedTopicId === topic.id && !app.selectedFeedId
-                   ? 'bg-zinc-800 text-zinc-100'
-                   : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/50'}"
+                 {dropTargetTopicId === topic.id
+                   ? 'bg-violet-500/20 ring-1 ring-violet-500/50'
+                   : app.selectedTopicId === topic.id && !app.selectedFeedId
+                     ? 'bg-zinc-800 text-zinc-100'
+                     : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/50'}"
         >
           <!-- Expand chevron -->
           {#if topicFeeds.length > 0}
@@ -231,9 +314,14 @@
           <div class="ml-4 border-l border-zinc-800 pl-1 mt-0.5 mb-1">
             {#each topicFeeds as feed (feed.id)}
               <button
+                draggable="true"
+                ondragstart={(e) => onDragStart(feed, e)}
+                ondragend={onDragEnd}
+                oncontextmenu={(e) => openContextMenu(feed, e)}
                 onclick={() => app.selectFeed(feed.id)}
                 title={feed.last_error || undefined}
                 class="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-[12px] transition-colors
+                       {dragFeedId === feed.id ? 'opacity-40' : ''}
                        {app.selectedFeedId === feed.id
                          ? 'bg-violet-600/15 text-violet-300'
                          : 'text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800/60'}"
@@ -298,17 +386,29 @@
       </div>
     {/if}
 
-    <!-- Uncategorized feeds -->
-    {#if app.uncategorizedFeeds.length > 0}
-      <div class="mx-3 mt-4 mb-1">
-        <span class="text-[11px] font-semibold text-zinc-600 uppercase tracking-wider">Feeds</span>
+    <!-- Uncategorized feeds (drop target to remove from topics) -->
+    {#if app.uncategorizedFeeds.length > 0 || dragFeedId}
+      <div
+        class="mx-3 mt-4 mb-1 rounded transition-colors {dropTargetTopicId === 'uncat' ? 'bg-violet-500/10' : ''}"
+        ondragover={onUncatDragOver}
+        ondragleave={onUncatDragLeave}
+        ondrop={onUncatDrop}
+      >
+        <span class="text-[11px] font-semibold text-zinc-600 uppercase tracking-wider">
+          {dragFeedId ? 'Drop here to uncategorize' : 'Feeds'}
+        </span>
       </div>
       <div class="mx-2">
         {#each app.uncategorizedFeeds as feed (feed.id)}
           <button
+            draggable="true"
+            ondragstart={(e) => onDragStart(feed, e)}
+            ondragend={onDragEnd}
+            oncontextmenu={(e) => openContextMenu(feed, e)}
             onclick={() => app.selectFeed(feed.id)}
             title={feed.last_error || undefined}
             class="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[13px] transition-colors
+                   {dragFeedId === feed.id ? 'opacity-40' : ''}
                    {app.selectedFeedId === feed.id
                      ? 'bg-violet-600/15 text-violet-300'
                      : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60'}"
@@ -362,3 +462,5 @@
     </button>
   </div>
 </aside>
+
+<FeedContextMenu bind:feed={ctxFeed} x={ctxX} y={ctxY} />

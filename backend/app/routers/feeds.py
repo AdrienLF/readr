@@ -54,7 +54,24 @@ async def list_feeds(db: AsyncSession = Depends(get_db)):
         select(Feed).options(selectinload(Feed.topics)).order_by(Feed.title)
     )
     feeds = result.scalars().all()
-    return [await _enrich_feed(f, db) for f in feeds]
+
+    # Batch unread counts in one query instead of N+1
+    unread_result = await db.execute(
+        select(Article.feed_id, func.count(Article.id))
+        .where(Article.is_read == False)
+        .group_by(Article.feed_id)
+    )
+    unread_map = dict(unread_result.all())
+
+    return [
+        FeedResponse(
+            **{c.name: getattr(f, c.name) for c in Feed.__table__.columns},
+            unread_count=unread_map.get(f.id, 0),
+            health=_compute_health(f),
+            topics=[{"id": t.id, "name": t.name, "color": t.color} for t in f.topics],
+        )
+        for f in feeds
+    ]
 
 
 @router.post("", response_model=FeedResponse, status_code=201)

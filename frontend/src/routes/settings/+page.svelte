@@ -10,6 +10,7 @@
   let saving = $state(false);
   let saved = $state(false);
   let editingFeed = $state(null);
+  let cleaningUp = $state(false);
 
   // Ollama model picker
   let ollamaModels = $state([]);
@@ -76,6 +77,18 @@
     await app.loadFeeds();
   }
 
+  async function cleanupErrorFeeds() {
+    const errorFeeds = app.feeds.filter((f) => f.health === 'error');
+    if (!confirm(`Delete ${errorFeeds.length} failing feed${errorFeeds.length > 1 ? 's' : ''} and their articles?`)) return;
+    cleaningUp = true;
+    try {
+      await Promise.all(errorFeeds.map((f) => feedsApi.delete(f.id)));
+      await Promise.all([app.loadFeeds(), app.loadTopics()]);
+    } finally {
+      cleaningUp = false;
+    }
+  }
+
   async function deleteTopic(id) {
     if (!confirm('Delete this topic? Feeds will not be deleted.')) return;
     await topicsApi.delete(id);
@@ -86,6 +99,12 @@
     await feedsApi.update(feed.id, { title: feed.title });
     await app.loadFeeds();
     editingFeed = null;
+  }
+
+  async function setFeedTopic(feed, topicId) {
+    const newTopicIds = topicId ? [parseInt(topicId)] : [];
+    await feedsApi.update(feed.id, { topic_ids: newTopicIds });
+    await Promise.all([app.loadFeeds(), app.loadTopics()]);
   }
 
   async function exportOpml() {
@@ -280,9 +299,16 @@
     <section class="card p-5">
       <div class="flex items-center justify-between mb-4">
         <h2 class="text-sm font-semibold text-zinc-300">Feeds ({app.feeds.length})</h2>
-        <button onclick={() => (app.addFeedOpen = true)} class="btn-ghost text-xs">
-          <Plus size={13} /> Add
-        </button>
+        <div class="flex items-center gap-2">
+          {#if app.feeds.some((f) => f.health === 'error')}
+            <button onclick={cleanupErrorFeeds} class="btn-danger text-xs" disabled={cleaningUp}>
+              <Trash2 size={13} /> {cleaningUp ? 'Removing…' : `Remove ${app.feeds.filter((f) => f.health === 'error').length} failing`}
+            </button>
+          {/if}
+          <button onclick={() => (app.addFeedOpen = true)} class="btn-ghost text-xs">
+            <Plus size={13} /> Add
+          </button>
+        </div>
       </div>
 
       <div class="space-y-1">
@@ -312,6 +338,17 @@
               </button>
             {:else}
               <span class="flex-1 text-sm text-zinc-300 truncate">{feed.title || feed.url}</span>
+              <select
+                class="text-xs bg-zinc-800 border border-zinc-700 rounded px-1.5 py-1 text-zinc-400 shrink-0 max-w-[120px]
+                       opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+                value={feed.topics?.[0]?.id ?? ''}
+                onchange={(e) => setFeedTopic(feed, e.target.value)}
+              >
+                <option value="">No topic</option>
+                {#each app.topics as topic (topic.id)}
+                  <option value={topic.id}>{topic.name}</option>
+                {/each}
+              </select>
               {#if feed.health && feed.health !== 'ok'}
                 <span
                   class="text-[10px] px-1.5 py-0.5 rounded border shrink-0 {healthBadge.cls}"
