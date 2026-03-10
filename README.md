@@ -13,7 +13,7 @@ A self-hosted, single-user RSS reader with full-text article fetching, Reddit co
 - **Bulk feed import with AI classification** — paste a list of URLs (or any text containing URLs) and let the local LLM auto-classify them into topics, with a review step before import
 - **Inline topic creation** — create new topics on the fly when adding a feed, no separate modal needed
 - **Reddit first-class** — Reddit posts include live threaded comment trees, upvotes, and comment counts
-- **Daily AI digest** — local LLM (Ollama + Qwen3:8b) summarizes the day's stories per topic at a configurable time
+- **Daily AI digest** — local LLM (Ollama + Qwen3.5:9b) summarizes the day's stories per topic at a configurable time
 - **Article summarization** — on-demand per-article summaries via local LLM, cached after first generation
 - **Named entity extraction** — extract people, organizations, places, and topics from articles; view trending entities
 - **Read tracking & bookmarks** — per-article state, persisted in SQLite
@@ -126,8 +126,9 @@ readr/
 │       └── services/
 │           ├── fetcher.py   Feed polling + Reddit normalization
 │           ├── extractor.py Full-text extraction (trafilatura)
-│           ├── scheduler.py APScheduler (poll + digest cron)
-│           └── llm.py       Ollama digest generation
+│           ├── scheduler.py    APScheduler (poll + digest cron)
+│           ├── llm.py          Ollama digest generation
+│           └── smart_search.py Saved-search matching
 └── frontend/
     └── src/
         ├── routes/          SvelteKit pages
