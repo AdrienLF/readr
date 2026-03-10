@@ -4,6 +4,8 @@ A self-hosted, single-user RSS reader with full-text article fetching, Reddit co
 
 ![Stack](https://img.shields.io/badge/backend-FastAPI-009688?style=flat-square) ![Stack](https://img.shields.io/badge/frontend-SvelteKit-FF3E00?style=flat-square) ![Stack](https://img.shields.io/badge/db-SQLite-003B57?style=flat-square) ![Stack](https://img.shields.io/badge/deploy-Docker_Compose-2496ED?style=flat-square)
 
+![Readr screenshot](screenshot.png)
+
 > **Heads up:** This project was vibe-coded — built iteratively with AI assistance, not architected upfront. I use it every day as my primary RSS reader and it works well for me, but it hasn't been battle-tested by a wide audience. Expect rough edges. Issues and PRs are welcome.
 
 ## Features
