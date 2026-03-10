@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 
 
 # --- Topic ---
@@ -241,6 +241,29 @@ class SettingsUpdate(BaseModel):
     digest_time: Optional[str] = None   # HH:MM
     ollama_model: Optional[str] = None
     fetch_interval: Optional[int] = None
+
+    @field_validator("digest_time")
+    @classmethod
+    def validate_digest_time(cls, v):
+        if v is not None:
+            import re
+            if not re.match(r"^([01]\d|2[0-3]):[0-5]\d$", v):
+                raise ValueError("digest_time must be HH:MM (00:00–23:59)")
+        return v
+
+    @field_validator("fetch_interval")
+    @classmethod
+    def validate_fetch_interval(cls, v):
+        if v is not None and (v < 60 or v > 86400):
+            raise ValueError("fetch_interval must be between 60 and 86400 seconds")
+        return v
+
+    @field_validator("ollama_model")
+    @classmethod
+    def validate_ollama_model(cls, v):
+        if v is not None and (len(v) < 1 or len(v) > 128):
+            raise ValueError("ollama_model must be 1–128 characters")
+        return v
 
 
 class SettingsResponse(BaseModel):

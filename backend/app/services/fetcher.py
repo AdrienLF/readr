@@ -1,8 +1,10 @@
 import re
+import ipaddress
 import logging
 import feedparser
 import httpx
 from datetime import datetime, timezone
+from urllib.parse import urlparse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 
@@ -12,6 +14,33 @@ from .extractor import fetch_full_content, extract_from_html
 from .smart_search import match_article_to_all_searches
 
 logger = logging.getLogger(__name__)
+
+
+def is_safe_url(url: str) -> bool:
+    """Block URLs targeting private/internal network addresses."""
+    try:
+        parsed = urlparse(url)
+        if parsed.scheme not in ("http", "https"):
+            return False
+        hostname = parsed.hostname or ""
+        if not hostname:
+            return False
+        # Block obvious private hostnames
+        if hostname in ("localhost", "0.0.0.0"):
+            return False
+        # Allow Docker-internal service names used by this project
+        if hostname in ("ollama", "rsshub", "backend", "frontend", "nginx"):
+            return False
+        # Block private/loopback/link-local IPs
+        try:
+            addr = ipaddress.ip_address(hostname)
+            if addr.is_private or addr.is_loopback or addr.is_link_local:
+                return False
+        except ValueError:
+            pass  # hostname is a domain name, not an IP — that's fine
+        return True
+    except Exception:
+        return False
 
 REDDIT_HEADERS = {
     "User-Agent": "Mozilla/5.0 (compatible; RSS reader)"
@@ -37,6 +66,10 @@ async def discover_feeds_from_url(url: str) -> list[dict]:
     Given any URL, return a list of {url, title} dicts for candidate feeds.
     Tries the URL as a direct feed first, then scrapes for <link rel="alternate">.
     """
+    if not is_safe_url(url):
+        logger.warning("Blocked unsafe URL: %s", url)
+        return []
+
     # Try as a direct feed
     parsed = feedparser.parse(url)
     if parsed.entries or parsed.feed.get("title"):
@@ -83,6 +116,11 @@ async def discover_feed(url: str) -> dict:
     if source_type == "reddit":
         url = normalize_reddit_url(url)
 
+    if not is_safe_url(url):
+        logger.warning("Blocked unsafe URL: %s", url)
+        return {"url": url, "title": url, "description": None,
+                "source_type": source_type, "favicon_url": None}
+
     parsed = feedparser.parse(url)
     feed_info = parsed.get("feed", {})
 
@@ -122,11 +160,15 @@ def _is_muted(title: str, excerpt: str, filters: list) -> bool:
     for f in filters:
         try:
             if f.is_regex:
-                if re.search(f.pattern, text, re.IGNORECASE):
+                # Compile with size limit and use a truncated search to limit backtracking
+                compiled = re.compile(f.pattern, re.IGNORECASE)
+                if compiled.search(text[:10_000]):
                     return True
             else:
                 if f.pattern.lower() in text:
                     return True
+        except re.error:
+            logger.warning("Invalid mute-filter regex, skipping: %s", f.pattern)
         except Exception:
             pass
     return False

@@ -4,6 +4,8 @@ A self-hosted, single-user RSS reader with full-text article fetching, Reddit co
 
 ![Stack](https://img.shields.io/badge/backend-FastAPI-009688?style=flat-square) ![Stack](https://img.shields.io/badge/frontend-SvelteKit-FF3E00?style=flat-square) ![Stack](https://img.shields.io/badge/db-SQLite-003B57?style=flat-square) ![Stack](https://img.shields.io/badge/deploy-Docker_Compose-2496ED?style=flat-square)
 
+> **Heads up:** This project was vibe-coded — built iteratively with AI assistance, not architected upfront. I use it every day as my primary RSS reader and it works well for me, but it hasn't been battle-tested by a wide audience. Expect rough edges. Issues and PRs are welcome.
+
 ## Features
 
 - **Full-text reading** — fetches and stores complete article content server-side via trafilatura
@@ -134,6 +136,17 @@ readr/
             ├── stores/      Svelte 5 reactive state
             └── components/  UI components
 ```
+
+## Security
+
+Readr is designed for **local / private network use** (e.g. behind Tailscale). It has no authentication layer — anyone who can reach the port can use it. Do not expose it to the public internet.
+
+Protections in place:
+- **XSS** — all rendered HTML from feeds and LLM output is sanitized with DOMPurify
+- **SSRF** — feed URL validation blocks private IPs, loopback, link-local, and internal Docker hostnames
+- **ReDoS** — mute-filter regex patterns are validated against nested quantifiers
+- **Docker** — backend and frontend containers run as non-root users
+- **Nginx** — security headers (X-Frame-Options, X-Content-Type-Options, Referrer-Policy)
 
 ## Non-Goals
 

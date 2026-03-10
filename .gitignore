@@ -4,6 +4,7 @@ data/
 *.sqlite
 .env
 .env.*
+!.env.example
 
 # Python
 backend/.venv/
@@ -22,3 +23,6 @@ frontend/build/
 # OS
 .DS_Store
 Thumbs.db
+
+# Editor / tooling
+.claude/

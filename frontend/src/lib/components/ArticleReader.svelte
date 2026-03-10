@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { format } from 'date-fns';
   import { marked } from 'marked';
+  import { sanitize } from '$lib/sanitize.js';
   import {
     X, ExternalLink, Bookmark, BookmarkCheck, BookmarkPlus, MessageSquare,
     Zap, Tag, StickyNote, Globe, ThumbsUp, ThumbsDown, Highlighter, Cpu,
@@ -571,7 +572,7 @@
                           prose-headings:text-zinc-200 prose-headings:font-semibold
                           prose-strong:text-zinc-200 prose-li:text-zinc-300
                           prose-ul:my-1 prose-ol:my-1">
-                {@html marked(article.summary)}
+                {@html sanitize(marked(article.summary))}
               </div>
             </div>
           {:else if summarizing}
@@ -658,7 +659,7 @@
           <!-- Body -->
           {#if article.full_content}
             <div class="article-content select-text">
-              {@html article.full_content}
+              {@html sanitize(article.full_content)}
             </div>
           {:else if article.excerpt}
             <p class="text-zinc-400 leading-relaxed italic">{article.excerpt}</p>

@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { format } from 'date-fns';
   import { marked } from 'marked';
+  import { sanitize } from '$lib/sanitize.js';
   import { Zap, RefreshCw, ChevronDown, AlertCircle } from 'lucide-svelte';
   import { app } from '$lib/stores/app.svelte.js';
   import { digests as digestsApi } from '$lib/api.js';
@@ -141,7 +142,7 @@
                             prose-p:text-zinc-300 prose-headings:text-zinc-200 prose-headings:font-semibold
                             prose-strong:text-zinc-200 prose-li:text-zinc-300
                             prose-ul:my-2 prose-ol:my-2 prose-li:my-0.5">
-                  {@html marked(digest.content || '')}
+                  {@html sanitize(marked(digest.content || ''))}
                 </div>
               </div>
             {/if}
