@@ -5,6 +5,7 @@
 
   let name = $state('');
   let query = $state('');
+  let strict = $state(false);
   let loading = $state(false);
   let error = $state('');
 
@@ -13,7 +14,7 @@
     loading = true;
     error = '';
     try {
-      const created = await savedSearchesApi.create({ name: name.trim(), query: query.trim() });
+      const created = await savedSearchesApi.create({ name: name.trim(), query: query.trim(), is_strict: strict });
       await app.loadSavedSearches();
       app.selectSmartSearch(created.id);
       close();
@@ -28,6 +29,7 @@
     app.addSmartSearchOpen = false;
     name = '';
     query = '';
+    strict = false;
     error = '';
   }
 </script>
@@ -62,18 +64,37 @@
         </div>
 
         <div>
-          <label class="block text-xs text-zinc-400 mb-1.5" for="ss-query">
-            What are you interested in?
-          </label>
-          <textarea
-            id="ss-query"
-            class="input min-h-[80px] resize-none"
-            placeholder="Describe the topic in plain language — Ollama will expand it into search terms automatically."
-            bind:value={query}
-          ></textarea>
-          <p class="text-xs text-zinc-500 mt-1">
-            Ollama will generate related keywords. New articles are matched automatically.
-          </p>
+          <div class="flex items-center justify-between mb-1.5">
+            <label class="text-xs text-zinc-400" for="ss-query">
+              {strict ? 'Keywords (comma-separated)' : 'What are you interested in?'}
+            </label>
+            <label class="flex items-center gap-1.5 cursor-pointer select-none">
+              <span class="text-[11px] text-zinc-500">Strict</span>
+              <input type="checkbox" bind:checked={strict}
+                class="w-3.5 h-3.5 rounded border-zinc-600 bg-zinc-800 text-violet-500 focus:ring-violet-500/30" />
+            </label>
+          </div>
+          {#if strict}
+            <textarea
+              id="ss-query"
+              class="input min-h-[80px] resize-none"
+              placeholder="woodworking, dovetail joints, hand planes, wood finishing"
+              bind:value={query}
+            ></textarea>
+            <p class="text-xs text-zinc-500 mt-1">
+              Articles must contain these exact keywords. No AI expansion.
+            </p>
+          {:else}
+            <textarea
+              id="ss-query"
+              class="input min-h-[80px] resize-none"
+              placeholder="Describe the topic in plain language — Ollama will expand it into search terms automatically."
+              bind:value={query}
+            ></textarea>
+            <p class="text-xs text-zinc-500 mt-1">
+              Ollama will generate related keywords. New articles are matched automatically.
+            </p>
+          {/if}
         </div>
 
         {#if error}

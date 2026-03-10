@@ -1,3 +1,4 @@
+import { goto } from '$app/navigation';
 import { feeds as feedsApi, topics as topicsApi, savedSearches as savedSearchesApi } from '$lib/api.js';
 
 class AppState {
@@ -5,6 +6,9 @@ class AppState {
   selectedTopicId = $state(null);
   selectedFeedId = $state(null);
   activeView = $state('feed'); // feed | bookmarks | saved | search | digest | settings | smart-search
+
+  // Bump to trigger article list refresh (e.g. after feed fetch completes)
+  refreshToken = $state(0);
 
   // Article reader
   selectedArticleId = $state(null);
@@ -66,11 +70,19 @@ class AppState {
     setTimeout(() => { this.selectedArticleId = null; }, 250);
   }
 
+  /** Navigate to the main page if we're on a sub-route (search, digest, settings…) */
+  _ensureHome() {
+    if (typeof window !== 'undefined' && window.location.pathname !== '/') {
+      goto('/');
+    }
+  }
+
   selectAll() {
     this.selectedTopicId = null;
     this.selectedFeedId = null;
     this.activeView = 'feed';
     this.closeReader();
+    this._ensureHome();
     if (window.innerWidth < 768) this.sidebarOpen = false;
   }
 
@@ -79,6 +91,7 @@ class AppState {
     this.selectedFeedId = null;
     this.activeView = 'feed';
     this.closeReader();
+    this._ensureHome();
     if (window.innerWidth < 768) this.sidebarOpen = false;
   }
 
@@ -87,6 +100,7 @@ class AppState {
     this.selectedTopicId = null;
     this.activeView = 'feed';
     this.closeReader();
+    this._ensureHome();
     if (window.innerWidth < 768) this.sidebarOpen = false;
   }
 
@@ -96,7 +110,13 @@ class AppState {
     this.selectedTopicId = null;
     this.activeView = 'smart-search';
     this.closeReader();
+    this._ensureHome();
     if (window.innerWidth < 768) this.sidebarOpen = false;
+  }
+
+  /** Call after feed refresh completes to reload the article list */
+  triggerArticleRefresh() {
+    this.refreshToken++;
   }
 
   async loadFeeds() {

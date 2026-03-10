@@ -139,7 +139,7 @@
   }
 
   $effect(() => {
-    void [topicId, feedId, bookmarksOnly, savedOnly, smartSearchId];
+    void [topicId, feedId, bookmarksOnly, savedOnly, smartSearchId, app.refreshToken];
     untrack(() => load(true));
   });
 

@@ -1,7 +1,9 @@
 <script>
-  import { Check, FolderInput, X, Loader2 } from 'lucide-svelte';
+  import { Check, FolderInput, X, Loader2, RefreshCw, Trash2 } from 'lucide-svelte';
   import { app } from '$lib/stores/app.svelte.js';
   import { feeds as feedsApi } from '$lib/api.js';
+
+  let confirmingDelete = $state(false);
 
   let { feed = $bindable(null), x = 0, y = 0 } = $props();
 
@@ -13,10 +15,19 @@
 
   function close() {
     feed = null;
+    confirmingDelete = false;
   }
 
   function handleClickOutside(e) {
-    if (menuEl && !menuEl.contains(e.target)) close();
+    // Check if click target is (or was) inside the menu.
+    // When Svelte swaps DOM nodes (e.g. delete → confirm), the old button
+    // may be detached before the window click handler runs, so also check
+    // if the target is no longer in the document (meaning it was just removed
+    // from inside the menu).
+    if (!menuEl) return;
+    if (menuEl.contains(e.target)) return;
+    if (!document.body.contains(e.target)) return;
+    close();
   }
 
   function handleKeydown(e) {
@@ -33,6 +44,34 @@
         : [...current, topicId];
       await feedsApi.update(liveFeed.id, { topic_ids: next });
       await Promise.all([app.loadFeeds(), app.loadTopics()]);
+    } finally {
+      busy = false;
+    }
+  }
+
+  async function refreshFeed() {
+    if (busy) return;
+    busy = true;
+    try {
+      await feedsApi.refresh(liveFeed.id);
+      setTimeout(() => {
+        app.loadFeeds();
+        app.triggerArticleRefresh();
+      }, 2000);
+      close();
+    } finally {
+      busy = false;
+    }
+  }
+
+  async function deleteFeed() {
+    if (busy) return;
+    busy = true;
+    try {
+      await feedsApi.delete(liveFeed.id);
+      await app.loadFeeds();
+      if (app.selectedFeedId === liveFeed.id) app.selectedFeedId = null;
+      close();
     } finally {
       busy = false;
     }
@@ -109,5 +148,39 @@
     {#if app.topics.length === 0}
       <p class="px-3 py-2 text-xs text-zinc-600 italic">No topics yet</p>
     {/if}
+
+    <div class="border-t border-zinc-800 mt-1 pt-1">
+      <button
+        onclick={refreshFeed}
+        disabled={busy}
+        class="w-full flex items-center gap-2 px-3 py-1.5 text-left text-[13px] text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition-colors
+               {busy ? 'opacity-50 cursor-wait' : ''}"
+      >
+        <RefreshCw size={13} class="shrink-0" />
+        <span>Refresh feed</span>
+      </button>
+
+      {#if confirmingDelete}
+        <button
+          onclick={deleteFeed}
+          disabled={busy}
+          class="w-full flex items-center gap-2 px-3 py-1.5 text-left text-[13px] text-red-400 bg-red-950/30 hover:bg-red-950/50 transition-colors
+                 {busy ? 'opacity-50 cursor-wait' : ''}"
+        >
+          <Trash2 size={13} class="shrink-0" />
+          <span>Confirm delete</span>
+        </button>
+      {:else}
+        <button
+          onclick={() => (confirmingDelete = true)}
+          disabled={busy}
+          class="w-full flex items-center gap-2 px-3 py-1.5 text-left text-[13px] text-zinc-500 hover:text-red-400 hover:bg-zinc-800 transition-colors
+                 {busy ? 'opacity-50 cursor-wait' : ''}"
+        >
+          <Trash2 size={13} class="shrink-0" />
+          <span>Delete feed</span>
+        </button>
+      {/if}
+    </div>
   </div>
 {/if}

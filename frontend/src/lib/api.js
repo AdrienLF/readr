@@ -114,6 +114,7 @@ export const digests = {
 export const savedSearches = {
   list: () => get('/saved-searches'),
   create: (data) => post('/saved-searches', data),
+  update: (id, data) => put(`/saved-searches/${id}`, data),
   delete: (id) => del(`/saved-searches/${id}`),
   articles: (id, params = {}) => {
     const q = new URLSearchParams();

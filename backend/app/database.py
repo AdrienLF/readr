@@ -77,6 +77,8 @@ async def init_db():
             "ALTER TABLE articles ADD COLUMN priority_score REAL NOT NULL DEFAULT 0.5",
             "ALTER TABLE articles ADD COLUMN score INTEGER",
             "ALTER TABLE articles ADD COLUMN comment_count INTEGER",
+            "ALTER TABLE saved_searches ADD COLUMN is_strict INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE saved_searches ADD COLUMN backfill_done INTEGER NOT NULL DEFAULT 1",
         ]
         for sql in migrations:
             try:

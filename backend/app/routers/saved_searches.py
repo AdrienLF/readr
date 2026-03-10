@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,13 +16,16 @@ router = APIRouter()
 class SavedSearchCreate(BaseModel):
     name: str
     query: str
+    is_strict: bool = False
 
 
 class SavedSearchResponse(BaseModel):
     id: int
     name: str
     query: str
+    is_strict: bool = False
     expanded_terms: Optional[list] = None
+    backfill_done: bool = False
     match_count: int = 0
     unread_count: int = 0
 
@@ -43,7 +48,9 @@ async def list_saved_searches(db: AsyncSession = Depends(get_db)):
         )).scalar() or 0
         result.append(SavedSearchResponse(
             id=s.id, name=s.name, query=s.query,
+            is_strict=s.is_strict,
             expanded_terms=s.expanded_terms,
+            backfill_done=s.backfill_done,
             match_count=total, unread_count=unread,
         ))
     return result
@@ -55,13 +62,20 @@ async def create_saved_search(
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
 ):
-    search = SavedSearch(name=payload.name, query=payload.query)
+    search = SavedSearch(name=payload.name, query=payload.query, is_strict=payload.is_strict)
+    if payload.is_strict:
+        # Strict mode: use user-supplied comma-separated keywords directly
+        search.expanded_terms = [t.strip().lower() for t in payload.query.split(",") if t.strip()]
+        search.terms_refreshed_at = datetime.now(timezone.utc)
     db.add(search)
     await db.commit()
     await db.refresh(search)
-    # Expand terms + backfill existing articles in background
+    # Expand terms (AI) + backfill existing articles in background
     background_tasks.add_task(backfill_search, search.id)
-    return SavedSearchResponse(id=search.id, name=search.name, query=search.query)
+    return SavedSearchResponse(
+        id=search.id, name=search.name, query=search.query,
+        is_strict=search.is_strict, expanded_terms=search.expanded_terms,
+    )
 
 
 @router.delete("/{search_id}", status_code=204)
@@ -71,6 +85,44 @@ async def delete_saved_search(search_id: int, db: AsyncSession = Depends(get_db)
         raise HTTPException(404, "Not found")
     await db.delete(search)
     await db.commit()
+
+
+class SavedSearchUpdate(BaseModel):
+    expanded_terms: Optional[list[str]] = None
+
+
+@router.put("/{search_id}", response_model=SavedSearchResponse)
+async def update_saved_search(
+    search_id: int,
+    payload: SavedSearchUpdate,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db),
+):
+    search = await db.get(SavedSearch, search_id)
+    if not search:
+        raise HTTPException(404, "Not found")
+    if payload.expanded_terms is not None:
+        search.expanded_terms = payload.expanded_terms
+        search.terms_refreshed_at = datetime.now(timezone.utc)
+        search.backfill_done = False
+    await db.commit()
+    await db.refresh(search)
+    # Re-backfill with updated terms
+    background_tasks.add_task(backfill_search, search.id)
+    total = (await db.execute(
+        select(func.count()).where(ArticleSearchMatch.search_id == search.id)
+    )).scalar() or 0
+    unread = (await db.execute(
+        select(func.count())
+        .select_from(ArticleSearchMatch)
+        .join(Article, Article.id == ArticleSearchMatch.article_id)
+        .where(ArticleSearchMatch.search_id == search.id, Article.is_read == False)
+    )).scalar() or 0
+    return SavedSearchResponse(
+        id=search.id, name=search.name, query=search.query,
+        is_strict=search.is_strict, expanded_terms=search.expanded_terms,
+        match_count=total, unread_count=unread,
+    )
 
 
 @router.post("/{search_id}/refresh-terms", status_code=202)

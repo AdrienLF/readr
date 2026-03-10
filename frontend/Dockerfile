@@ -15,10 +15,9 @@ WORKDIR /app
 COPY --from=builder /app/build ./build
 COPY --from=builder /app/package.json ./
 RUN npm install --omit=dev && \
-    adduser -D -u 1000 appuser && \
-    chown -R appuser:appuser /app
+    chown -R node:node /app
 
-USER appuser
+USER node
 
 EXPOSE 3000
 ENV NODE_ENV=production

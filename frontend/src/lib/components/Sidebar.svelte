@@ -1,9 +1,12 @@
 <script>
-  import { Home, Bookmark, BookmarkCheck, Search, Zap, Settings, Plus, Rss, RefreshCw, ChevronRight, BookOpen, TrendingUp, Sparkles, Trash2, Upload } from 'lucide-svelte';
+  import { Home, Bookmark, BookmarkCheck, Search, Zap, Settings, Plus, Rss, RefreshCw, ChevronRight, BookOpen, TrendingUp, Sparkles, Trash2, Upload, Loader2 } from 'lucide-svelte';
   import { savedSearches as savedSearchesApi } from '$lib/api.js';
   import { app } from '$lib/stores/app.svelte.js';
   import { feeds as feedsApi, entities as entitiesApi } from '$lib/api.js';
   import FeedContextMenu from './FeedContextMenu.svelte';
+  import SmartSearchDetailModal from './SmartSearchDetailModal.svelte';
+
+  let detailSearch = $state(null);
 
   // Context menu
   let ctxFeed = $state(null);
@@ -90,6 +93,19 @@
     if (app.selectedSmartSearchId === id) app.selectAll();
   }
 
+  // Poll while any search is still being processed (AI expanding or backfill running)
+  let pendingPollTimer = $state(null);
+  $effect(() => {
+    const hasPending = app.savedSearches.some((ss) => !ss.backfill_done);
+    if (hasPending && !pendingPollTimer) {
+      pendingPollTimer = setInterval(() => app.loadSavedSearches(), 3000);
+    } else if (!hasPending && pendingPollTimer) {
+      clearInterval(pendingPollTimer);
+      pendingPollTimer = null;
+    }
+    return () => { if (pendingPollTimer) clearInterval(pendingPollTimer); };
+  });
+
   let trendingOpen = $state(false);
   let trendingEntities = $state([]);
   let trendingLoading = $state(false);
@@ -133,7 +149,10 @@
     refreshing = true;
     try {
       await feedsApi.refreshAll();
-      setTimeout(() => app.loadFeeds(), 2000);
+      setTimeout(() => {
+        app.loadFeeds();
+        app.triggerArticleRefresh();
+      }, 2000);
     } finally {
       setTimeout(() => (refreshing = false), 2000);
     }
@@ -231,6 +250,7 @@
                     : 'hover:bg-zinc-800/50'}">
         <button
           onclick={() => app.selectSmartSearch(ss.id)}
+          ondblclick={() => (detailSearch = ss)}
           class="flex-1 flex items-center gap-2 px-2 py-1.5 text-[13px] transition-colors min-w-0
                  {app.activeView === 'smart-search' && app.selectedSmartSearchId === ss.id
                    ? 'text-violet-300'
@@ -238,8 +258,12 @@
         >
           <Sparkles size={12} class="shrink-0 text-violet-400" />
           <span class="flex-1 truncate text-left">{ss.name}</span>
-          {#if ss.unread_count > 0}
-            <span class="text-[11px] text-zinc-500 tabular-nums shrink-0">{ss.unread_count > 9999 ? '9999+' : ss.unread_count}</span>
+          {#if !ss.expanded_terms && !ss.is_strict}
+            <Loader2 size={11} class="animate-spin text-violet-400 shrink-0" />
+          {:else if ss.match_count > 0}
+            <span class="text-[11px] tabular-nums shrink-0 {ss.unread_count > 0 ? 'text-violet-400' : 'text-zinc-600'}">
+              {ss.unread_count > 0 ? ss.unread_count : ss.match_count}
+            </span>
           {/if}
         </button>
         <button
@@ -464,3 +488,4 @@
 </aside>
 
 <FeedContextMenu bind:feed={ctxFeed} x={ctxX} y={ctxY} />
+<SmartSearchDetailModal bind:search={detailSearch} />

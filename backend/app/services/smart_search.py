@@ -82,8 +82,11 @@ def _score_article(article: Article, terms: list[str]) -> float:
 
 
 async def refresh_search_terms(search: SavedSearch, db: AsyncSession) -> list[str]:
-    """Expand the query via Ollama and persist the terms."""
-    terms = await expand_query(search.query)
+    """Expand the query via Ollama and persist the terms (or parse comma-separated keywords for strict mode)."""
+    if search.is_strict:
+        terms = [t.strip().lower() for t in search.query.split(",") if t.strip()]
+    else:
+        terms = await expand_query(search.query)
     search.expanded_terms = terms
     search.terms_refreshed_at = datetime.now(timezone.utc)
     await db.commit()
@@ -150,5 +153,6 @@ async def backfill_search(search_id: int):
                 ))
                 added += 1
 
+        search.backfill_done = True
         await db.commit()
         logger.info(f"Backfilled search '{search.name}': {added} matches from {len(articles)} articles")

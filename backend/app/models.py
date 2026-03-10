@@ -191,9 +191,11 @@ class SavedSearch(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(256))
     query: Mapped[str] = mapped_column(Text)
+    is_strict: Mapped[bool] = mapped_column(default=False)  # strict = user-supplied keywords only
     # Ollama-expanded list of search terms, stored as JSON array
     expanded_terms: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)
     terms_refreshed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    backfill_done: Mapped[bool] = mapped_column(default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
 
     matches: Mapped[list["ArticleSearchMatch"]] = relationship(
