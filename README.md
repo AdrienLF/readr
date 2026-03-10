@@ -53,7 +53,7 @@ docker exec -it readr-ollama-1 ollama pull qwen3.5:9b
 bash start.sh
 ```
 
-Open `http://localhost` in your browser.
+Open `http://localhost:7755` in your browser.
 
 ### GPU support
 
