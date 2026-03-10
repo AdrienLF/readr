@@ -17,7 +17,7 @@ A self-hosted, single-user RSS reader with full-text article fetching, Reddit co
 - **Article summarization** — on-demand per-article summaries via local LLM, cached after first generation
 - **Named entity extraction** — extract people, organizations, places, and topics from articles; view trending entities
 - **Read tracking & bookmarks** — per-article state, persisted in SQLite
-- **Save for later** — separate saved-articles list, distinct from bookmarks
+- **Read later** — separate read-later list, distinct from bookmarks
 - **Tags & automation rules** — color-coded tags and fetch-time rules (auto-bookmark, auto-tag, auto-mute)
 - **Mute filters** — drop articles matching patterns (plain text or regex) at fetch time, globally or per-feed
 - **Smart searches** — saved search queries with automatic article matching

@@ -161,7 +161,7 @@
 
   function getRuleActionLabel(action) {
     if (action === 'mark_read') return 'Mark as read';
-    if (action === 'save') return 'Save for later';
+    if (action === 'save') return 'Read later';
     if (action === 'bookmark') return 'Bookmark';
     if (action === 'mute') return 'Mute (discard)';
     if (action.startsWith('tag:')) {

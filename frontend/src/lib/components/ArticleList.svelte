@@ -206,7 +206,7 @@
         : bookmarksOnly
           ? 'Bookmarks'
           : savedOnly
-            ? 'Saved for Later'
+            ? 'Read Later'
             : 'All Articles'
   );
 </script>

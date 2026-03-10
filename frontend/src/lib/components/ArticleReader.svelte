@@ -358,8 +358,8 @@
         <button
           onclick={toggleSaved}
           class="btn-ghost p-2 {article.is_saved ? 'text-violet-400' : ''}"
-          aria-label={article.is_saved ? 'Remove from saved' : 'Save for later'}
-          title={article.is_saved ? 'Remove from saved' : 'Save for later'}
+          aria-label={article.is_saved ? 'Remove from read later' : 'Read later'}
+          title={article.is_saved ? 'Remove from read later' : 'Read later'}
         >
           <BookmarkPlus size={18} class={article.is_saved ? 'text-violet-400' : ''} />
         </button>

@@ -52,6 +52,13 @@ def extract_from_html(html: str, url: str) -> tuple[str | None, str | None, str 
 
         image_url = metadata.image if metadata and metadata.image else None
 
+        # Fallback: extract first image from article content
+        if not image_url and content_html:
+            import re
+            img_match = re.search(r'<img[^>]+src=["\']([^"\']+)["\']', content_html)
+            if img_match:
+                image_url = img_match.group(1)
+
         return content_html, excerpt, image_url
     except Exception as e:
         logger.warning(f"Extraction failed for {url}: {e}")

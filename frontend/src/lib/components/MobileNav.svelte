@@ -6,7 +6,7 @@
     { id: 'feed', icon: Home, label: 'Home', path: '/' },
     { id: 'search', icon: Search, label: 'Search', path: '/search' },
     { id: 'digest', icon: Zap, label: 'Digest', path: '/digest' },
-    { id: 'bookmarks', icon: Bookmark, label: 'Saved', path: '/bookmarks' },
+    { id: 'bookmarks', icon: Bookmark, label: 'Bookmarks', path: '/bookmarks' },
     { id: 'settings', icon: Settings, label: 'Settings', path: '/settings' },
   ];
 </script>

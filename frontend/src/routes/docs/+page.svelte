@@ -261,8 +261,8 @@
             <p>Each article has a private note field. Click the <strong class="text-zinc-300">sticky-note</strong> icon in the reader toolbar to open the note editor. Notes are saved on your server and never leave.</p>
           </div>
           <div>
-            <p class="text-zinc-300 font-medium mb-1.5">Save for Later</p>
-            <p>Click the <strong class="text-zinc-300">bookmark+</strong> icon to save an article for later. Saved articles appear in the <strong class="text-zinc-300">Saved</strong> sidebar section, separate from Bookmarks.</p>
+            <p class="text-zinc-300 font-medium mb-1.5">Read Later</p>
+            <p>Click the <strong class="text-zinc-300">bookmark+</strong> icon to mark an article for reading later. These articles appear in the <strong class="text-zinc-300">Read Later</strong> sidebar section, separate from Bookmarks.</p>
           </div>
           <div>
             <p class="text-zinc-300 font-medium mb-1.5">Automation Rules</p>
