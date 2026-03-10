@@ -47,7 +47,7 @@ cd readr
 
 # Pull the Ollama model (first run only)
 docker compose up -d ollama
-docker exec -it readr-ollama-1 ollama pull qwen3:8b
+docker exec -it readr-ollama-1 ollama pull qwen3.5:9b
 
 # Start everything (auto-detects GPU)
 bash start.sh
@@ -82,7 +82,7 @@ Settings are available through the UI (`/settings`) or via environment variables
 | Setting | Default | Description |
 |---|---|---|
 | `digest_time` | `07:00` | Daily digest generation time (HH:MM) |
-| `ollama_model` | `qwen3:8b` | Ollama model used for digests |
+| `ollama_model` | `qwen3.5:9b` | Ollama model used for digests |
 | `fetch_interval` | `3600` | Feed poll interval in seconds |
 
 Environment variables:
