@@ -88,12 +88,17 @@
     }
   }
 
-  // Clamp menu position to viewport
+  // Clamp menu position to viewport, flipping upward if needed
   let style = $derived.by(() => {
     if (!feed) return '';
-    const maxX = typeof window !== 'undefined' ? window.innerWidth - 220 : x;
-    const maxY = typeof window !== 'undefined' ? window.innerHeight - 300 : y;
-    return `left: ${Math.min(x, maxX)}px; top: ${Math.min(y, maxY)}px;`;
+    const vw = typeof window !== 'undefined' ? window.innerWidth : Infinity;
+    const vh = typeof window !== 'undefined' ? window.innerHeight : Infinity;
+    const menuW = 208; // w-52 = 13rem = 208px
+    const menuH = menuEl?.offsetHeight ?? 300;
+    const left = Math.min(x, vw - menuW - 8);
+    const fitsBelow = y + menuH + 8 <= vh;
+    const top = fitsBelow ? y : Math.max(8, y - menuH);
+    return `left: ${left}px; top: ${top}px;`;
   });
 </script>
 
