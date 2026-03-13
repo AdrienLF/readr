@@ -59,8 +59,29 @@
          prose-headings:text-zinc-100
          prose-p:text-zinc-300 prose-p:leading-relaxed
          prose-a:text-violet-400 prose-a:no-underline hover:prose-a:underline
-         prose-img:rounded-xl prose-img:w-full
+         prose-img:rounded-xl prose-img:max-w-full prose-img:h-auto
          prose-blockquote:border-violet-500 prose-blockquote:text-zinc-400
          prose-code:text-violet-300 prose-code:bg-zinc-800 prose-code:rounded prose-code:px-1
          prose-pre:bg-zinc-900 prose-pre:border prose-pre:border-zinc-800;
+}
+
+/* Reddit RSS wraps content in <table><tr><td>image</td><td>text</td></tr></table>.
+   Flatten to block layout so image + text stack vertically and stay contained. */
+.article-content table,
+.article-content thead,
+.article-content tbody,
+.article-content tr,
+.article-content td,
+.article-content th {
+  display: block !important;
+  width: 100% !important;
+}
+
+/* Constrain all media to the container */
+.article-content img,
+.article-content video,
+.article-content iframe {
+  max-width: 100% !important;
+  height: auto !important;
+  display: block;
 }

@@ -55,9 +55,10 @@
 
   function loadMore() { page += 1; load(); }
 
-  // Infinite scroll
+  // Infinite scroll — track `loading` so the observer is disconnected while a fetch
+  // is in progress, preventing a runaway loop of page loads when the sentinel stays visible.
   $effect(() => {
-    if (!sentinelEl || !hasMore) return;
+    if (!sentinelEl || !hasMore || loading) return;
     const observer = new IntersectionObserver((entries) => {
       if (entries[0].isIntersecting) untrack(() => loadMore());
     }, { rootMargin: '300px' });

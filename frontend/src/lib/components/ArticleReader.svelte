@@ -64,6 +64,7 @@
 
   async function loadArticle(id) {
     loading = true;
+    article = null;
     comments = [];
     commentsOpen = false;
     noteEditing = false;
@@ -79,6 +80,10 @@
       highlights = article.highlights || [];
       entities = article.entities || [];
       userSignal = article.user_signal ?? null;
+      // Auto-load comments for Reddit posts
+      if (article.feed_source_type === 'reddit') {
+        loadComments();
+      }
     } finally {
       loading = false;
     }
@@ -218,12 +223,6 @@
 
   let isReddit = $derived(article?.feed_source_type === 'reddit');
 
-  // Auto-load comments for Reddit posts
-  $effect(() => {
-    if (article && isReddit && !commentsOpen && comments.length === 0 && !commentsLoading) {
-      loadComments();
-    }
-  });
 
   function fmtNum(n) {
     if (n == null) return '';
